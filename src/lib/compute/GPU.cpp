@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:49
  * Last edited:
- *   17/04/2021, 16:58:05
+ *   26/04/2021, 16:57:20
  * Auto updated?
  *   Yes
  *
@@ -463,7 +463,6 @@ GPU::GPU(const Tools::Array<const char*>& instance_extensions, const Tools::Arra
 
     // We're done initializing!
     DDEDENT;
-    DLOG(info, "GPU initialized.");
     DLEAVE;
 }
 
@@ -516,7 +515,6 @@ GPU::~GPU() {
 
     // We're done here
     DDEDENT;
-    DLOG(info, "Cleaned GPU.");
     DLEAVE;
 }
 
