@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   26/04/2021, 17:09:50
+ *   26/04/2021, 17:30:27
  * Auto updated?
  *   Yes
  *
@@ -66,11 +66,37 @@ void populate_allocate_info(VkMemoryAllocateInfo& allocate_info, uint32_t memory
 
 
 /***** BUFFER CLASS *****/
-/* Private, constructor for the Buffer class, which takes the buffer and size. */
-Buffer::Buffer(VkBuffer buffer, VkDeviceSize buffer_size) :
+/* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
+Buffer::Buffer(VkBuffer buffer, VkDeviceMemory vk_memory, VkDeviceSize buffer_size, VkMemoryPropertyFlags memory_properties) :
     vk_buffer(buffer),
-    vk_buffer_size(buffer_size)
+    vk_memory(vk_memory),
+    vk_buffer_size(buffer_size),
+    vk_memory_properties(memory_properties)
 {}
+
+
+
+/* Directly sets the value of this buffer. Only possible if the VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT is set for the memory of this buffer's pool. */
+void Buffer::set(const GPU& gpu, void* data, size_t n_bytes) {
+    DENTER("Compute::Buffer::set");
+
+    // If this buffer does not have the host bit set, then we stop immediatement
+    if (!(this->vk_memory_properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
+        DLOG(fatal, "Cannot set a buffer that is not visible by the CPU.");
+    }
+
+    // Next, make sure the buffer has enough memory
+    if (this->vk_buffer_size < (VkDeviceSize) n_bytes) {
+        DLOG(fatal, "Buffer of " + std::to_string(this->vk_buffer_size) + " bytes is too small to receive " + std::to_string(n_bytes) + " bytes of data.");
+    }
+
+    // Now, we map the memory to a bit of host-side memory
+    VkResult vk_result;
+    void* mbuffer;
+    if ((vk_result = vkMapMemory(gpu, this->vk_memory, )))
+
+    DRETURN;
+}
 
 
 
@@ -78,15 +104,35 @@ Buffer::Buffer(VkBuffer buffer, VkDeviceSize buffer_size) :
 
 /***** MEMORYPOOL CLASS *****/
 /* Constructor for the MemoryPool class, which takes a device to allocate on, the type of memory we will allocate on and the total size of the allocated block. */
-MemoryPool::MemoryPool(const GPU& gpu, uint32_t memory_type, VkDeviceSize n_bytes) :
+MemoryPool::MemoryPool(const GPU& gpu, uint32_t memory_type, VkDeviceSize n_bytes, VkMemoryPropertyFlags memory_properties) :
     gpu(gpu),
     vk_memory_type(memory_type),
     vk_memory_size(n_bytes),
+    vk_memory_properties(memory_properties),
     vk_free_blocks({ MemoryPool::FreeBlock({ 0, this->vk_memory_size }) })
 {
     DENTER("Compute::MemoryPool::MemoryPool");
     DLOG(info, "Initializing MemoryPool...");
     DINDENT;
+
+
+
+    #ifndef NDEBUG
+    DLOG(info, "Validating memory requirements...");
+
+    // Get the memory properties of the GPU
+    VkPhysicalDeviceMemoryProperties gpu_properties;
+    vkGetPhysicalDeviceMemoryProperties(gpu, &gpu_properties);
+
+    // Check if the chosen memory type has the desired properties
+    if (memory_type >= 32) {
+        DLOG(fatal, "Memory type is out of range (0 <= memory_type < 32)");
+    }
+    if ((gpu_properties.memoryTypes[memory_type].propertyFlags & this->vk_memory_properties) != this->vk_memory_properties) {
+        DLOG(fatal, "Chosen memory type with index " + std::to_string(memory_type) + " does not support the specified memory properties.");
+    }
+
+    #endif
     
 
 
@@ -113,6 +159,7 @@ MemoryPool::MemoryPool(MemoryPool&& other):
     vk_memory(other.vk_memory),
     vk_memory_type(other.vk_memory_type),
     vk_memory_size(other.vk_memory_size),
+    vk_memory_properties(other.vk_memory_properties),
     vk_used_blocks(std::move(other.vk_used_blocks)),
     vk_free_blocks(std::move(other.vk_free_blocks))
 {
@@ -155,7 +202,7 @@ Buffer MemoryPool::at(BufferHandle buffer) const {
     if (this->vk_used_blocks.find(buffer) == this->vk_used_blocks.end()) {
         DLOG(fatal, "Buffer with handle '" + std::to_string(buffer) + "' does not exist.");
     }
-    DRETURN init_buffer(this->vk_used_blocks.at(buffer));
+    DRETURN init_buffer(this->vk_used_blocks.at(buffer), this->vk_memory, this->vk_memory_properties);
 }
 
 
@@ -463,6 +510,7 @@ void Compute::swap(MemoryPool& mp1, MemoryPool& mp2) {
     swap(mp1.vk_memory, mp2.vk_memory);
     swap(mp1.vk_memory_type, mp2.vk_memory_type);
     swap(mp1.vk_memory_size, mp2.vk_memory_size);
+    swap(mp1.vk_memory_properties, mp2.vk_memory_properties),
     swap(mp1.vk_used_blocks, mp2.vk_used_blocks);
     swap(mp1.vk_free_blocks, mp2.vk_free_blocks);
 
@@ -472,7 +520,7 @@ void Compute::swap(MemoryPool& mp1, MemoryPool& mp2) {
 
 
 /* Static function that helps users decide the best memory queue. */
-uint32_t MemoryPool::select_memory_type(const GPU& gpu, VkMemoryPropertyFlags mem_properties, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode, VkBufferCreateFlags create_flags) {
+uint32_t MemoryPool::select_memory_type(const GPU& gpu, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode, VkBufferCreateFlags create_flags) {
     DENTER("Compute::MemoryPool::select_memory_type");
 
     // Get the available memory in the internal device
@@ -499,7 +547,7 @@ uint32_t MemoryPool::select_memory_type(const GPU& gpu, VkMemoryPropertyFlags me
 
     // Try to find suitable memory (i.e., check if the device has enough memory bits(?) and if the required properties match)
     for (uint32_t i = 0; i < gpu_properties.memoryTypeCount; i++) {
-        if (mem_requirements.memoryTypeBits & (1 << i) && (gpu_properties.memoryTypes[i].propertyFlags & mem_properties) == mem_properties) {
+        if (mem_requirements.memoryTypeBits & (1 << i)) {
             DRETURN i;
         }
     }

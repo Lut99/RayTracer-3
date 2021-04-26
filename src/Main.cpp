@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   26/04/2021, 17:10:17
+ *   26/04/2021, 17:20:36
  * Auto updated?
  *   Yes
  *
@@ -55,7 +55,7 @@ int main() {
         GPU gpu(instance_extensions, device_extensions, required_layers);
 
         // Declare the memory pools
-        MemoryPool mpool(gpu, MemoryPool::select_memory_type(gpu, 0, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT), 1024);
+        MemoryPool mpool(gpu, MemoryPool::select_memory_type(gpu, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT), 1024);
         DescriptorPool dpool(gpu, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 1);
 
         // Define a descriptor set layout
