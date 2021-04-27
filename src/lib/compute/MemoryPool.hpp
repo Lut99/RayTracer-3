@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:35
  * Last edited:
- *   27/04/2021, 16:29:36
+ *   27/04/2021, 18:28:36
  * Auto updated?
  *   Yes
  *
@@ -34,6 +34,9 @@ namespace RayTracer::Compute {
         /* The actual VkBuffer object constructed. */
         VkBuffer vk_buffer;
 
+        /* Describes the usage flags set for this buffer. */
+        VkBufferUsageFlags vk_usage_flags;
+
         /* Reference to the large memory block where this buffer is allocated. */
         VkDeviceMemory vk_memory;
         /* The offset of the internal buffer. */
@@ -47,7 +50,7 @@ namespace RayTracer::Compute {
         Tools::Array<void*> mapped_areas;
 
         /* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
-        Buffer(VkBuffer buffer, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkMemoryPropertyFlags memory_properties);
+        Buffer(VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkMemoryPropertyFlags memory_properties);
         
         /* Mark the MemoryPool as friend. */
         friend class MemoryPool;
@@ -61,7 +64,7 @@ namespace RayTracer::Compute {
         void unmap(const GPU& gpu);
 
         /* Copies this buffer's content to another given buffer. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Optionally waits until the queue is idle before returning. Note that the given buffer needn't come from the same memory pool. */
-        void copy(const GPU& gpu, CommandBuffer& command_buffer, Buffer& destination, bool wait_queue_idle = true);
+        void copyto(const GPU& gpu, CommandBuffer& command_buffer, Buffer& destination, bool wait_queue_idle = true);
 
         /* Returns the size of the buffer, in bytes. */
         inline VkDeviceSize size() const { return this->vk_memory_size; }
@@ -126,7 +129,7 @@ namespace RayTracer::Compute {
 
 
         /* Private helper function that takes a UsedBlock, and uses it to initialize the given buffer. */
-        inline static Buffer init_buffer(const UsedBlock& used_block, VkDeviceMemory vk_memory, VkMemoryPropertyFlags memory_properties) { return Buffer(used_block.vk_buffer, vk_memory, used_block.start, used_block.length, memory_properties); }
+        inline static Buffer init_buffer(const UsedBlock& used_block, VkDeviceMemory vk_memory, VkMemoryPropertyFlags memory_properties) { return Buffer(used_block.vk_buffer, used_block.vk_usage_flags, vk_memory, used_block.start, used_block.length, memory_properties); }
 
     public:
         /* Constructor for the MemoryPool class, which takes a device to allocate on, the type of memory we will allocate on and the total size of the allocated block. */

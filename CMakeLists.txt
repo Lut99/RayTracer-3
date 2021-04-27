@@ -41,3 +41,12 @@ target_link_libraries(raytracer PUBLIC
                       ${EXTRA_LIBS}
                       ${Vulkan_LIBRARIES}
                       cppdbg)
+
+
+
+##### BUILDING SHADERS #####
+# Define the custom commands to compile the shaders
+add_custom_command(TARGET raytracer POST_BUILD
+    COMMAND glslc -fshader-stage=compute -o ${PROJECT_SOURCE_DIR}/bin/shaders/test_shader.spv ${PROJECT_SOURCE_DIR}/src/shaders/test_shader.glsl
+    COMMENT "Building shaders..."
+)

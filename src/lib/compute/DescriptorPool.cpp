@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:38:48
  * Last edited:
- *   27/04/2021, 16:52:11
+ *   27/04/2021, 18:17:20
  * Auto updated?
  *   Yes
  *
@@ -44,7 +44,7 @@ static void populate_buffer_info(VkDescriptorBufferInfo& buffer_info, const Buff
 }
 
 /* Populates a given VkWriteDescriptorSet struct. */
-static void populate_write_info(VkWriteDescriptorSet& write_info, VkDescriptorSet vk_descriptor_set, uint32_t bind_index, const VkDescriptorBufferInfo& buffer_info) {
+static void populate_write_info(VkWriteDescriptorSet& write_info, VkDescriptorSet vk_descriptor_set, uint32_t bind_index, const Tools::Array<VkDescriptorBufferInfo>& buffer_infos) {
     DENTER("populate_write_info");
 
     // Set to default
@@ -61,11 +61,11 @@ static void populate_write_info(VkWriteDescriptorSet& write_info, VkDescriptorSe
     write_info.dstArrayElement = 0;
 
     // Next, set which type of descriptor this is and how many
-    write_info.descriptorCount = 1;
-    write_info.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write_info.descriptorCount = static_cast<uint32_t>(buffer_infos.size());
+    write_info.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 
     // Then, the data to pass. This can be of multiple forms, but we pass a buffer.
-    write_info.pBufferInfo = &buffer_info;
+    write_info.pBufferInfo = buffer_infos.rdata();
     write_info.pImageInfo = nullptr;
     write_info.pTexelBufferView = nullptr;
 
@@ -109,7 +109,7 @@ static void populate_descriptor_pool_info(VkDescriptorPoolCreateInfo& descriptor
 }
 
 /* Populates a given VkDescriptorSetAllocateInfo struct. */
-static void populate_descriptor_set_info(VkDescriptorSetAllocateInfo& descriptor_set_info, VkDescriptorPool vk_descriptor_pool, const Tools::Array<VkDescriptorSetLayout>& descriptor_set_layouts, uint32_t n_sets) {
+static void populate_descriptor_set_info(VkDescriptorSetAllocateInfo& descriptor_set_info, VkDescriptorPool vk_descriptor_pool, const Tools::Array<VkDescriptorSetLayout>& vk_descriptor_set_layouts, uint32_t n_sets) {
     DENTER("populate_descriptor_set_info");
 
     // Set to default
@@ -123,7 +123,7 @@ static void populate_descriptor_set_info(VkDescriptorSetAllocateInfo& descriptor
     descriptor_set_info.descriptorSetCount = n_sets;
 
     // Set the layout for this descriptor
-    descriptor_set_info.pSetLayouts = descriptor_set_layouts.rdata();
+    descriptor_set_info.pSetLayouts = vk_descriptor_set_layouts.rdata();
 
     // Done
     DRETURN;
@@ -139,21 +139,39 @@ DescriptorSet::DescriptorSet(VkDescriptorSet descriptor_set) :
     vk_descriptor_set(descriptor_set)
 {}
 
-/* Binds this descriptor set with the contents of a given buffer to the given bind index. */
-void DescriptorSet::set(const GPU& gpu, uint32_t bind_index, const Buffer& buffer) {
+/* Binds this descriptor set with the contents of a given buffer to the given bind index. Must be enough buffers to actually populate all bindings of the given type. */
+void DescriptorSet::set(const GPU& gpu, uint32_t bind_index, const Tools::Array<Buffer>& buffers) {
     DENTER("Compute::DescriptorSet::set");
 
-    // Start by creating the buffer info so that the descriptor knows smthng about the buffer
-    VkDescriptorBufferInfo buffer_info;
-    populate_buffer_info(buffer_info, buffer);
+    // We first create a list of buffer infos
+    Tools::Array<VkDescriptorBufferInfo> buffer_infos(buffers.size());
+    for (size_t i = 0; i < buffers.size(); i++) {
+        // Start by creating the buffer info so that the descriptor knows smthng about the buffer
+        VkDescriptorBufferInfo buffer_info;
+        populate_buffer_info(buffer_info, buffers[i]);
+
+        // Add to the list
+        buffer_infos.push_back(buffer_info);
+    }
 
     // Next, generate a VkWriteDescriptorSet with which we populate the buffer information
     // Can also use copies, for descriptor-to-descriptor stuff.
     VkWriteDescriptorSet write_info;
-    populate_write_info(write_info, this->vk_descriptor_set, bind_index, buffer_info);
+    populate_write_info(write_info, this->vk_descriptor_set, bind_index, buffer_infos);
 
     // With the write info populated, update this set. Note that this can be used to perform multiple descriptor write & copies simultaneously
     vkUpdateDescriptorSets(gpu, 1, &write_info, 0, nullptr);
+
+    // Done!
+    DRETURN;
+}
+
+/* Binds the descriptor to the given (compute) command buffer. We assume that the recording already started. */
+void DescriptorSet::bind(const CommandBuffer& buffer, VkPipelineLayout pipeline_layout) {
+    DENTER("Compute::DescriptorSet::bind");
+
+    // Add the binding
+    vkCmdBindDescriptorSets(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, pipeline_layout, 0, 1, &this->vk_descriptor_set, 0, nullptr);
 
     DRETURN;
 }
@@ -244,10 +262,13 @@ DescriptorSet DescriptorPool::allocate(const DescriptorSetLayout& descriptor_set
     if (static_cast<uint32_t>(this->vk_descriptor_sets.size()) >= this->max_size) {
         DLOG(fatal, "Cannot allocate new DescriptorSet: already allocated maximum of " + std::to_string(this->max_size) + " sets.");
     }
+    
+    // Put the layout in a struct s.t. we can pass it and keep it in memory until after the call
+    Tools::Array<VkDescriptorSetLayout> vk_descriptor_set_layouts({ descriptor_set_layout.descriptor_set_layout() });
 
     // Next, populate the create info
     VkDescriptorSetAllocateInfo descriptor_set_info;
-    populate_descriptor_set_info(descriptor_set_info, this->vk_descriptor_pool, Tools::Array<VkDescriptorSetLayout>({ descriptor_set_layout.descriptor_set_layout() }), 1);
+    populate_descriptor_set_info(descriptor_set_info, this->vk_descriptor_pool, vk_descriptor_set_layouts, 1);
 
     // We can now call the allocate function
     VkResult vk_result;
@@ -260,13 +281,19 @@ DescriptorSet DescriptorPool::allocate(const DescriptorSetLayout& descriptor_set
 }
 
 /* Allocates multiple descriptor sets with the given layout, returning them as an Array. Will fail with errors if there's no more space. */
-Tools::Array<DescriptorSet> DescriptorPool::nallocate(uint32_t n_sets, const DescriptorSetLayout& descriptor_set_layout) {
+Tools::Array<DescriptorSet> DescriptorPool::nallocate(uint32_t n_sets, const Tools::Array<DescriptorSetLayout>& descriptor_set_layouts) {
     DENTER("Compute::DescriptorPool::nallocate");
 
     #ifndef NDEBUG
     // If n_sets if null, nothing to do
     if (n_sets == 0) {
         DLOG(warning, "Request to allocate 0 sets received; nothing to do.");
+        DRETURN Tools::Array<DescriptorSet>();
+    }
+
+    // If we aren't passed enough layouts, then tell us
+    if (n_sets != descriptor_set_layouts.size()) {
+        DLOG(fatal, "Not enough descriptor set layouts passed: got " + std::to_string(descriptor_set_layouts.size()) + ", expected " + std::to_string(n_sets));
     }
     #endif
 
@@ -276,14 +303,14 @@ Tools::Array<DescriptorSet> DescriptorPool::nallocate(uint32_t n_sets, const Des
     }
 
     // If we do, prepare a set of n times the same descriptor set layout
-    Tools::Array<VkDescriptorSetLayout> descriptor_set_layouts(n_sets);
-    for (size_t i = 0; i < descriptor_set_layouts.capacity(); i++) {
-        descriptor_set_layouts.push_back(descriptor_set_layout);
+    Tools::Array<VkDescriptorSetLayout> vk_descriptor_set_layouts(descriptor_set_layouts.size());
+    for (size_t i = 0; i < descriptor_set_layouts.size(); i++) {
+        vk_descriptor_set_layouts.push_back(descriptor_set_layouts[i]);
     }
 
     // Next, populate the create info
     VkDescriptorSetAllocateInfo descriptor_set_info;
-    populate_descriptor_set_info(descriptor_set_info, this->vk_descriptor_pool, descriptor_set_layouts, n_sets);
+    populate_descriptor_set_info(descriptor_set_info, this->vk_descriptor_pool, vk_descriptor_set_layouts, n_sets);
 
     // We can now call the allocate function
     VkResult vk_result;

@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 14:44:19
  * Last edited:
- *   27/04/2021, 15:42:24
+ *   27/04/2021, 18:21:16
  * Auto updated?
  *   Yes
  *
@@ -114,7 +114,7 @@ Pipeline::Pipeline(const GPU& gpu, const Shader& shader, const Tools::Array<Desc
     // Create an array with the raw VkDescriptorSetLayouts
     Tools::Array<VkDescriptorSetLayout> vk_descriptor_set_layouts(descriptor_set_layouts.size());
     for (size_t i = 0; i < descriptor_set_layouts.size(); i++) {
-        vk_descriptor_set_layouts[i] = descriptor_set_layouts[i];
+        vk_descriptor_set_layouts.push_back(descriptor_set_layouts[i]);
     }
 
     // Use that to populate the struct
@@ -123,8 +123,7 @@ Pipeline::Pipeline(const GPU& gpu, const Shader& shader, const Tools::Array<Desc
 
     // Create the layout
     VkResult vk_result;
-    VkPipelineLayout pipeline_layout;
-    if ((vk_result = vkCreatePipelineLayout(this->gpu, &layout_info, nullptr, &pipeline_layout)) != VK_SUCCESS) {
+    if ((vk_result = vkCreatePipelineLayout(this->gpu, &layout_info, nullptr, &this->vk_compute_pipeline_layout)) != VK_SUCCESS) {
         DLOG(fatal, "Could not create pipeline layout: " + vk_error_map[vk_result]);
     }
 
@@ -133,7 +132,7 @@ Pipeline::Pipeline(const GPU& gpu, const Shader& shader, const Tools::Array<Desc
     // We start by populating the VkComputePipelineCreateInfo struct
     DLOG(info, "Constructing pipeline...");
     VkComputePipelineCreateInfo compute_info;
-    populate_compute_info(compute_info, pipeline_layout, shader_stage_info);
+    populate_compute_info(compute_info, this->vk_compute_pipeline_layout, shader_stage_info);
 
     // Call the create function!
     if ((vk_result = vkCreateComputePipelines(this->gpu, VK_NULL_HANDLE, 1, &compute_info, nullptr, &this->vk_compute_pipeline)) != VK_SUCCESS) {
@@ -150,10 +149,12 @@ Pipeline::Pipeline(const GPU& gpu, const Shader& shader, const Tools::Array<Desc
 /* Move constructor for the Pipeline class. */
 Pipeline::Pipeline(Pipeline&& other) :
     gpu(other.gpu),
-    vk_compute_pipeline(other.vk_compute_pipeline)
+    vk_compute_pipeline(other.vk_compute_pipeline),
+    vk_compute_pipeline_layout(other.vk_compute_pipeline_layout)
 {
     // Set the pipeline to nullptr to avoid deallocation
     other.vk_compute_pipeline = nullptr;
+    other.vk_compute_pipeline_layout = nullptr;
 }
 
 /* Destructor for the Pipeline class. */
@@ -162,6 +163,11 @@ Pipeline::~Pipeline() {
     DLOG(info, "Cleaning Pipeline...");
     DINDENT;
 
+    if (this->vk_compute_pipeline_layout != nullptr) {
+        DLOG(info, "Destroying pipeline layout...");
+        vkDestroyPipelineLayout(this->gpu, this->vk_compute_pipeline_layout, nullptr);
+    }
+
     if (this->vk_compute_pipeline != nullptr) {
         DLOG(info, "Destroying pipeline...");
         vkDestroyPipeline(this->gpu, this->vk_compute_pipeline, nullptr);
@@ -169,6 +175,18 @@ Pipeline::~Pipeline() {
 
     DDEDENT;
     DLEAVE;
+}
+
+
+
+/* Schedules the compute pipeline in the given CommandBuffer. Note that we assume the command buffer has already been started. */
+void Pipeline::bind(const CommandBuffer& buffer) {
+    DENTER("Compute::Pipeline::schedule");
+
+    // Only one command, ez game
+    vkCmdBindPipeline(buffer, VK_PIPELINE_BIND_POINT_COMPUTE, this->vk_compute_pipeline);
+
+    DRETURN;
 }
 
 
@@ -194,6 +212,7 @@ void Compute::swap(Pipeline& p1, Pipeline& p2) {
 
     // Swap all fields
     swap(p1.vk_compute_pipeline, p2.vk_compute_pipeline);
+    swap(p1.vk_compute_pipeline_layout, p2.vk_compute_pipeline_layout);
 
     // Done
     DRETURN;

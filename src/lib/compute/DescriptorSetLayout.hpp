@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 15:33:48
  * Last edited:
- *   26/04/2021, 16:07:01
+ *   27/04/2021, 18:01:27
  * Auto updated?
  *   Yes
  *
@@ -19,6 +19,7 @@
 #include <vulkan/vulkan.h>
 
 #include "GPU.hpp"
+#include "tools/Array.hpp"
 
 namespace RayTracer::Compute {
     /* The DescriptorSetLayout class, which describes the layout for a single type of buffer. */
@@ -29,16 +30,23 @@ namespace RayTracer::Compute {
 
         /* The actual VkDescriptorSetLayout we wrap. */
         VkDescriptorSetLayout vk_descriptor_set_layout;
+        /* Keeps track of all bindings defined. */
+        Tools::Array<VkDescriptorSetLayoutBinding> vk_bindings;
 
     public:
         /* Constructor for the DescriptorSetLayout class, which takes a gpu to bind the buffer to, the index of this bind as seen on the shader, the type of the buffer we describe for and the shader stage where the uniform buffer will eventually be bound to. */
-        DescriptorSetLayout(const GPU& gpu, uint32_t bind_index, VkDescriptorType descriptor_type, VkShaderStageFlags shader_stage);
+        DescriptorSetLayout(const GPU& gpu);
         /* Copy constructor for the DescriptorSetLayout class, which is deleted. */
-        DescriptorSetLayout(const DescriptorSetLayout& other) = delete;
+        DescriptorSetLayout(const DescriptorSetLayout& other);
         /* Move constructor for the DescriptorSetLayout class. */
         DescriptorSetLayout(DescriptorSetLayout&& other);
         /* Destructor for the DescriptorSetLayout class. */
         ~DescriptorSetLayout();
+
+        /* Adds a binding to the DescriptorSetLayout; i.e., one type of resource that a single descriptorset will bind. */
+        void add_binding(VkDescriptorType vk_descriptor_type, uint32_t n_descriptors, VkShaderStageFlags vk_shader_stage);
+        /* Finalizes the descriptor layout. Note that no more bindings can be added after this point. */
+        void finalize();
 
         /* Expliticly returns the internal VkDescriptorSetLayout object. */
         inline const VkDescriptorSetLayout& descriptor_set_layout() const { return this->vk_descriptor_set_layout; }
@@ -46,7 +54,7 @@ namespace RayTracer::Compute {
         inline operator VkDescriptorSetLayout() const { return this->vk_descriptor_set_layout; }
 
         /* Copy assignment operator for the DescriptorSetLayout class, which is deleted. */
-        DescriptorSetLayout& operator=(const DescriptorSetLayout& other) = delete;
+        DescriptorSetLayout& operator=(const DescriptorSetLayout& other) { return *this = DescriptorSetLayout(other); };
         /* Move assignment operator for the DescriptorSetLayout class. */
         DescriptorSetLayout& operator=(DescriptorSetLayout&& other);
         /* Swap operator for the DescriptorSetLayout class. */

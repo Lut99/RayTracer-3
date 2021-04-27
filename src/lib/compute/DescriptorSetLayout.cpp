@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 15:33:41
  * Last edited:
- *   27/04/2021, 16:49:16
+ *   27/04/2021, 18:04:38
  * Auto updated?
  *   Yes
  *
@@ -27,7 +27,7 @@ using namespace CppDebugger::SeverityValues;
 
 /***** POPULATE FUNCTIONS *****/
 /* Populates given VkDescriptorSetLayoutBinding struct. */
-static void populate_descriptor_set_binding(VkDescriptorSetLayoutBinding& descriptor_set_binding, uint32_t bind_index, VkDescriptorType descriptor_type, VkShaderStageFlags shader_stage) {
+static void populate_descriptor_set_binding(VkDescriptorSetLayoutBinding& descriptor_set_binding, uint32_t bind_index, VkDescriptorType descriptor_type, uint32_t n_descriptors, VkShaderStageFlags shader_stage) {
     DENTER("populate_descriptor_set_binding");
 
     // Set to default
@@ -40,7 +40,7 @@ static void populate_descriptor_set_binding(VkDescriptorSetLayoutBinding& descri
     descriptor_set_binding.descriptorType = descriptor_type;
     
     // Set the number of descriptors to use
-    descriptor_set_binding.descriptorCount = 1;
+    descriptor_set_binding.descriptorCount = n_descriptors;
     
     // Set the stage flags
     descriptor_set_binding.stageFlags = shader_stage;
@@ -53,7 +53,7 @@ static void populate_descriptor_set_binding(VkDescriptorSetLayoutBinding& descri
 }
 
 /* Populates a given VkDescriptorSetLayoutCreateInfo struct. */
-static void populate_descriptor_set_layout_info(VkDescriptorSetLayoutCreateInfo& descriptor_set_layout_info, const VkDescriptorSetLayoutBinding& descriptor_set_binding) {
+static void populate_descriptor_set_layout_info(VkDescriptorSetLayoutCreateInfo& descriptor_set_layout_info, const Tools::Array<VkDescriptorSetLayoutBinding>& vk_bindings) {
     DENTER("populate_descriptor_set_layout_info");
 
     // Initialize to default
@@ -61,8 +61,8 @@ static void populate_descriptor_set_layout_info(VkDescriptorSetLayoutCreateInfo&
     descriptor_set_layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 
     // Set the bindings to use
-    descriptor_set_layout_info.bindingCount = 1;
-    descriptor_set_layout_info.pBindings = &descriptor_set_binding;
+    descriptor_set_layout_info.bindingCount = static_cast<uint32_t>(vk_bindings.size());
+    descriptor_set_layout_info.pBindings = vk_bindings.rdata();
 
     // Done!
     DRETURN;
@@ -73,35 +73,34 @@ static void populate_descriptor_set_layout_info(VkDescriptorSetLayoutCreateInfo&
 
 
 /***** DESCRIPTORSETLAYOUT CLASS *****/
-/* Constructor for the DescriptorSetLayout class, which takes a gpu to bind the buffer to, the index of this bind as seen on the shader, the type of the buffer we describe for and the shader stage where the uniform buffer will eventually be bound to. */
-DescriptorSetLayout::DescriptorSetLayout(const GPU& gpu, uint32_t bind_index, VkDescriptorType descriptor_type, VkShaderStageFlags shader_stage) :
-    gpu(gpu)
+/* Constructor for the DescriptorSetLayout class, which takes a gpu to bind the buffer to. Defining bindings and such will have to be done using individual functions. */
+DescriptorSetLayout::DescriptorSetLayout(const GPU& gpu) :
+    gpu(gpu),
+    vk_descriptor_set_layout(nullptr)
+{}
+
+/* Copy constructor for the DescriptorSetLayout class, which is deleted. */
+DescriptorSetLayout::DescriptorSetLayout(const DescriptorSetLayout& other) :
+    gpu(other.gpu),
+    vk_descriptor_set_layout(other.vk_descriptor_set_layout),
+    vk_bindings(other.vk_bindings)
 {
-    DENTER("Compute::DescriptorSetLayout::DescriptorSetLayout");
-    DLOG(info, "Initializing descriptor set layout...");
+    DENTER("Compute::DescriptorSetLayout::DescriptorSetLayout(copy)");
 
-    // Define how to bind the layout descriptor (i.e., where)
-    VkDescriptorSetLayoutBinding descriptor_set_binding;
-    populate_descriptor_set_binding(descriptor_set_binding, bind_index, descriptor_type, shader_stage);
-
-    // Next, we'll create the DescriptorSetLayout itself via a create info (who could've guessed)
-    VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info;
-    populate_descriptor_set_layout_info(descriptor_set_layout_info, descriptor_set_binding);
-    
-    // Finally, call the constructor
-    VkResult vk_result;
-    if ((vk_result = vkCreateDescriptorSetLayout(this->gpu, &descriptor_set_layout_info, nullptr, &this->vk_descriptor_set_layout)) != VK_SUCCESS) {
-        DLOG(fatal, "Could not create descriptor set layout: " + vk_error_map[vk_result]);
+    // If the descriptor set layout is not a nullptr, re-create it manually
+    if (this->vk_descriptor_set_layout != nullptr) {
+        this->vk_descriptor_set_layout = nullptr;
+        this->finalize();
     }
 
-    // Done
     DLEAVE;
 }
 
 /* Move constructor for the DescriptorSetLayout class. */
 DescriptorSetLayout::DescriptorSetLayout(DescriptorSetLayout&& other) :
     gpu(other.gpu),
-    vk_descriptor_set_layout(other.vk_descriptor_set_layout)
+    vk_descriptor_set_layout(other.vk_descriptor_set_layout),
+    vk_bindings(other.vk_bindings)
 {
     // Set the layout to a nullptr to avoid deallocation
     other.vk_descriptor_set_layout = nullptr;
@@ -110,13 +109,60 @@ DescriptorSetLayout::DescriptorSetLayout(DescriptorSetLayout&& other) :
 /* Destructor for the DescriptorSetLayout class. */
 DescriptorSetLayout::~DescriptorSetLayout() {
     DENTER("Compute::DescriptorSetLayout::~DescriptorSetLayout");
-    DLOG(info, "Cleaning DescriptorSetLayout...");
 
     if (this->vk_descriptor_set_layout != nullptr) {
         vkDestroyDescriptorSetLayout(this->gpu, this->vk_descriptor_set_layout, nullptr);
     }
 
     DLEAVE;
+}
+
+
+
+/* Adds a binding to the DescriptorSetLayout; i.e., one type of resource that a single descriptorset will bind. */
+void DescriptorSetLayout::add_binding(VkDescriptorType vk_descriptor_type, uint32_t n_descriptors, VkShaderStageFlags vk_shader_stage) {
+    DENTER("Compute::DescriptorSetLayout::add_binding");
+
+    // If the layout has already been created, then crash
+    if (this->vk_descriptor_set_layout != nullptr) {
+        DLOG(fatal, "Cannot add binding to DescriptorSetLayout after finalize() has been called.");
+    }
+
+    // We populate the struct
+    VkDescriptorSetLayoutBinding binding;
+    populate_descriptor_set_binding(binding, this->vk_bindings.size(), vk_descriptor_type, n_descriptors, vk_shader_stage);
+
+    // Add it to the internal list
+    this->vk_bindings.push_back(binding);
+
+    // Done
+    DRETURN;
+}
+
+/* Finalizes the descriptor layout. Note that no more bindings can be added after this point. */
+void DescriptorSetLayout::finalize() {
+    DENTER("Compute::DescriptorSetLayout::finalize");
+
+    // If the layout has already been created, then warning that nothing happens
+    if (this->vk_descriptor_set_layout != nullptr) {
+        DLOG(warning, "Calling finalize() more than once is useless.");
+        DRETURN;
+    }
+
+    // Otherwise, prepare the bindings
+    VkDescriptorSetLayoutCreateInfo descriptor_set_layout_info;
+    populate_descriptor_set_layout_info(descriptor_set_layout_info, this->vk_bindings);
+
+    // Create the layout
+    VkResult vk_result;
+    if ((vk_result = vkCreateDescriptorSetLayout(this->gpu, &descriptor_set_layout_info, nullptr, &this->vk_descriptor_set_layout)) != VK_SUCCESS) {
+        DLOG(fatal, "Could not create descriptor set layout: " + vk_error_map[vk_result]);
+    }
+
+    // Do not clear the bindings, to keep the class copyable
+
+    // Done!
+    DRETURN;
 }
 
 
@@ -142,6 +188,7 @@ void Compute::swap(DescriptorSetLayout& dsl1, DescriptorSetLayout& dsl2) {
 
     // Swap all fields
     swap(dsl1.vk_descriptor_set_layout, dsl2.vk_descriptor_set_layout);
+    swap(dsl1.vk_bindings, dsl2.vk_bindings);
 
     // Done
     DRETURN;

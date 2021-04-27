@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 14:44:28
  * Last edited:
- *   27/04/2021, 15:31:07
+ *   27/04/2021, 17:17:45
  * Auto updated?
  *   Yes
  *
@@ -20,6 +20,7 @@
 
 #include "GPU.hpp"
 #include "DescriptorSetLayout.hpp"
+#include "CommandPool.hpp"
 #include "Shader.hpp"
 
 namespace RayTracer::Compute {
@@ -32,7 +33,10 @@ namespace RayTracer::Compute {
         /* The actual VkPipeline object this class wraps. */
         VkPipeline vk_compute_pipeline;
 
-    private:
+        /* The layout of the pipeline. */
+        VkPipelineLayout vk_compute_pipeline_layout;
+
+    public:
         /* Constructor for the Pipeline class, which takes the GPU where we create it for, the shader to load and the set of descriptor set layouts which describe all buffers used in the pipeline.  */
         Pipeline(const GPU& gpu, const Shader& shader, const Tools::Array<DescriptorSetLayout>& descriptor_set_layouts);
         /* Cope constructor for the Pipeline class, which is deleted. */
@@ -41,6 +45,14 @@ namespace RayTracer::Compute {
         Pipeline(Pipeline&& other);
         /* Destructor for the Pipeline class. */
         ~Pipeline();
+
+        /* Schedules the compute pipeline in the given CommandBuffer. Note that we assume the command buffer has already been started. */
+        void bind(const CommandBuffer& buffer);
+
+        /* Explicitly returns the layout of the pipeline. */
+        inline VkPipelineLayout layout() const { return this->vk_compute_pipeline_layout; }
+        /* Implicitly returns the layout of the pipeline. */
+        inline operator VkPipelineLayout() const { return this->vk_compute_pipeline_layout; }
 
         /* Explicitly returns the inner VkPipeline object. */
         inline VkPipeline compute_pipeline() const { return this->vk_compute_pipeline; }

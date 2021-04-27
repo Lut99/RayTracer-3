@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   27/04/2021, 16:05:23
+ *   27/04/2021, 18:31:40
  * Auto updated?
  *   Yes
  *
@@ -85,8 +85,9 @@ void populate_memory_range(VkMappedMemoryRange& memory_range, VkDeviceMemory vk_
 
 /***** BUFFER CLASS *****/
 /* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
-Buffer::Buffer(VkBuffer buffer, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkMemoryPropertyFlags memory_properties) :
+Buffer::Buffer(VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkMemoryPropertyFlags memory_properties) :
     vk_buffer(buffer),
+    vk_usage_flags(vk_usage_flags),
     vk_memory(vk_memory),
     vk_memory_offset(memory_offset),
     vk_memory_size(memory_size),
@@ -150,12 +151,20 @@ void  Buffer::unmap(const GPU& gpu) {
 
 
 /* Copies this buffer's content to another given buffer. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Note that the given buffer needn't come from the same memory pool. */
-void Buffer::copy(const GPU& gpu, CommandBuffer& command_buffer, Buffer& destination, bool wait_queue_idle) {
-    DENTER("Compute::Buffer::copy");
+void Buffer::copyto(const GPU& gpu, CommandBuffer& command_buffer, Buffer& destination, bool wait_queue_idle) {
+    DENTER("Compute::Buffer::copyto");
 
     // First, check if the destination buffer is large enough
     if (destination.vk_memory_size < this->vk_memory_size) {
         DLOG(fatal, "Cannot copy " + std::to_string(this->vk_memory_size) + " bytes to buffer of only " + std::to_string(destination.vk_memory_size) + " bytes.");
+    }
+
+    // Next, make sure they have the required flags
+    if (!(this->vk_usage_flags & VK_BUFFER_USAGE_TRANSFER_SRC_BIT)) {
+        DLOG(fatal, "Source buffer does not have VK_BUFFER_USAGE_TRANSFER_SRC_BIT-flag set.");
+    }
+    if (!(destination.vk_usage_flags & VK_BUFFER_USAGE_TRANSFER_DST_BIT)) {
+        DLOG(fatal, "Destination buffer does not have VK_BUFFER_USAGE_TRANSFER_DST_BIT-flag set.");
     }
 
     // Next, start recording the given command buffer, and we'll tell Vulkan we use this recording only once

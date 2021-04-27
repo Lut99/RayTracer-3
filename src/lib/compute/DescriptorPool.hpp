@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:39:16
  * Last edited:
- *   27/04/2021, 16:34:33
+ *   27/04/2021, 18:13:32
  * Auto updated?
  *   Yes
  *
@@ -21,6 +21,7 @@
 
 #include "MemoryPool.hpp"
 #include "DescriptorSetLayout.hpp"
+#include "CommandPool.hpp"
 #include "tools/Array.hpp"
 
 #include "GPU.hpp"
@@ -40,7 +41,9 @@ namespace RayTracer::Compute {
 
     public:
         /* Binds this descriptor set with the contents of a given buffer to the given bind index. */
-        void set(const GPU& gpu, uint32_t bind_index, const Buffer& buffer);
+        void set(const GPU& gpu, uint32_t bind_index, const Tools::Array<Buffer>& buffers);
+        /* Binds the descriptor to the given (compute) command buffer. We assume that the recording already started. */
+        void bind(const CommandBuffer& buffer, VkPipelineLayout pipeline_layout);
 
         /* Explicity returns the internal VkDescriptorSet object. */
         inline VkDescriptorSet descriptor_set() const { return this->vk_descriptor_set; }
@@ -78,7 +81,7 @@ namespace RayTracer::Compute {
         /* Allocates a single descriptor set with the given layout. Will fail with errors if there's no more space. */
         DescriptorSet allocate(const DescriptorSetLayout& descriptor_set_layout);
         /* Allocates multiple descriptor sets with the given layout, returning them as an Array. Will fail with errors if there's no more space. */
-        Tools::Array<DescriptorSet> nallocate(uint32_t n_sets, const DescriptorSetLayout& descriptor_set_layout);
+        Tools::Array<DescriptorSet> nallocate(uint32_t n_sets, const Tools::Array<DescriptorSetLayout>& descriptor_set_layouts);
 
         /* Returns the current number of sets allocated in this pool. */
         inline size_t size() const { return this->vk_descriptor_sets.size(); }

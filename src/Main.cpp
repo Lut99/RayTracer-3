@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   27/04/2021, 16:50:49
+ *   27/04/2021, 18:28:51
  * Auto updated?
  *   Yes
  *
@@ -20,6 +20,7 @@
 #include "compute/DescriptorSetLayout.hpp"
 #include "compute/DescriptorPool.hpp"
 #include "compute/CommandPool.hpp"
+#include "compute/Pipeline.hpp"
 
 using namespace std;
 using namespace RayTracer;
@@ -57,18 +58,18 @@ int main() {
 
         // Search for the required memory types
         uint32_t transfer_mem_type = MemoryPool::select_memory_type(gpu, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-        uint32_t device_mem_type = MemoryPool::select_memory_type(gpu, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        uint32_t device_mem_type = MemoryPool::select_memory_type(gpu, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
         // Declare the command pools
         CommandPool compute_cpool(gpu, gpu.queue_info().compute());
-        CommandPool mem_cpool(gpu, gpu.queue_info().memory());
+        CommandPool mem_cpool(gpu, gpu.queue_info().memory(), VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
         // Declare the memory pools
-        MemoryPool transfer_mpool(gpu, transfer_mem_type, 1024 * sizeof(uint16_t), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-        MemoryPool dev_mpool(gpu, device_mem_type, 2 * 1024 * sizeof(uint16_t), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        MemoryPool transfer_mpool(gpu, transfer_mem_type, 1024 * sizeof(uint32_t), VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        MemoryPool dev_mpool(gpu, device_mem_type, 2 * 1024 * sizeof(uint32_t), VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
         // Declare the descriptor pool
-        DescriptorPool dpool(gpu, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 2, 2);
+        DescriptorPool dpool(gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, 2);
 
 
 
@@ -76,26 +77,33 @@ int main() {
         CommandBufferHandle cb_copy_h = mem_cpool.allocate();
         CommandBuffer cb_copy = mem_cpool[cb_copy_h];
 
+        // Initialize the compute command buffer
+        CommandBufferHandle cb_compute_h = compute_cpool.allocate();
+        CommandBuffer cb_compute = compute_cpool[cb_compute_h];
+
         // Initialize the buffers for this memory
-        BufferHandle copyfrom_h = dev_mpool.allocate(1024 * sizeof(uint16_t), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-        BufferHandle copyto_h = dev_mpool.allocate(1024 * sizeof(uint16_t), VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+        BufferHandle copyfrom_h = dev_mpool.allocate(1024 * sizeof(uint32_t), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        BufferHandle copyto_h = dev_mpool.allocate(1024 * sizeof(uint32_t), VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
         Buffer copyfrom = dev_mpool[copyfrom_h], copyto = dev_mpool[copyto_h];
 
         // Initialize the staging buffer
-        BufferHandle staging_h = transfer_mpool.allocate(1024 * sizeof(uint16_t), VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+        BufferHandle staging_h = transfer_mpool.allocate(1024 * sizeof(uint32_t), VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
         Buffer staging = transfer_mpool[staging_h];
 
         // Define the descriptor set layouts for our test copy shader
-        DescriptorSetLayout src_layout(gpu, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT);
-        DescriptorSetLayout dst_layout(gpu, 1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT);
+        DescriptorSetLayout layout(gpu);
+        layout.add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
+        layout.add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
+        layout.finalize();
 
-        // Define descriptors for the uniform buffers used in the pipeline
-        DescriptorSet src_descriptor = dpool.nallocate(1, src_layout)[0];
-        DescriptorSet dst_descriptor = dpool.nallocate(1, dst_layout)[0];
+        // Define descriptors for the uniform buffers used in the pipeline & bind them to the buffers
+        DescriptorSet descriptors = dpool.allocate(layout);
+        descriptors.set(gpu, 0, Tools::Array<Buffer>({ copyfrom }));
+        descriptors.set(gpu, 1, Tools::Array<Buffer>({ copyto }));
 
-        // Set the descriptors with the correct buffer values
-        src_descriptor.set(gpu, 0, copyfrom);
-        dst_descriptor.set(gpu, 1, copyto);
+        // Finally, load the shader & create the Pipeline
+        Shader shader(gpu, "bin/shaders/test_shader.spv");
+        Pipeline compute_pipeline(gpu, shader, Tools::Array<DescriptorSetLayout>({ layout }));
 
 
 
@@ -103,11 +111,11 @@ int main() {
         DLOG(auxillary, "");
 
         DLOG(info, "Mapping staging buffer...");
-        uint16_t* data;
+        uint32_t* data;
         staging.map(gpu, (void**) &data);
 
         DLOG(info, "Populating staging buffer...");
-        for (uint16_t i = 0; i < 1024; i++) {
+        for (uint32_t i = 0; i < 1024; i++) {
             data[i] = i;
         }
 
@@ -116,11 +124,40 @@ int main() {
         staging.unmap(gpu);
 
         DLOG(info, "Populating source buffer...");
-        staging.copy(gpu, cb_copy, copyfrom);
+        staging.copyto(gpu, cb_copy, copyfrom);
 
 
 
-        // With that prepared, it's time to call our compute pipeline
+        // With that prepared, it's time to record the command buffer
+        DLOG(info, "Recording command buffer...");
+        cb_compute.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+        compute_pipeline.bind(cb_compute);
+        descriptors.bind(cb_compute, compute_pipeline.layout());
+        vkCmdDispatch(cb_compute, 32, 1, 1);
+        DLOG(info, "Executing compute shader...");
+        cb_compute.end(gpu.compute_queue());
+
+
+
+        // With the queue idle for sure, copy the result buffer back to the staging buffer
+        DLOG(info, "Copying back to staging buffer...");
+        copyfrom.copyto(gpu, cb_copy, staging);
+
+        // Map the staging buffer so we can check
+        DLOG(info, "Mapping staging buffer...");
+        staging.map(gpu, (void**) &data);
+
+        DLOG(info, "Printing staging buffer:");
+        for (uint32_t i = 0; i < 1024; i++) {
+            if (i > 0 && i % 32 == 0) {
+                printf("\n");
+            }
+            printf("%u", i);
+        }
+        printf("\n");
+
+        DLOG(info, "Unmapping staging buffer...");
+        staging.unmap(gpu);
 
 
 
