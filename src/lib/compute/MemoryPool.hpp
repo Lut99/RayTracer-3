@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:35
  * Last edited:
- *   27/04/2021, 14:17:18
+ *   27/04/2021, 16:29:36
  * Auto updated?
  *   Yes
  *
@@ -64,7 +64,9 @@ namespace RayTracer::Compute {
         void copy(const GPU& gpu, CommandBuffer& command_buffer, Buffer& destination, bool wait_queue_idle = true);
 
         /* Returns the size of the buffer, in bytes. */
-        VkDeviceSize size() const { return this->vk_memory_size; }
+        inline VkDeviceSize size() const { return this->vk_memory_size; }
+        /* Returns the memory offset of the buffer, in bytes. */
+        inline VkDeviceSize offset() const { return this->vk_memory_offset; }
         /* Explicit retrieval of the internal buffer object. */
         inline VkBuffer buffer() const { return this->vk_buffer; }
         /* Implicit retrieval of the internal buffer object. */
@@ -157,7 +159,7 @@ namespace RayTracer::Compute {
         friend void swap(MemoryPool& mp1, MemoryPool& mp2);
 
         /* Static function that helps users decide the best memory queue. */
-        static uint32_t select_memory_type(const GPU& gpu, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode = VK_SHARING_MODE_EXCLUSIVE, VkBufferCreateFlags create_flags = 0);
+        static uint32_t select_memory_type(const GPU& gpu, VkBufferUsageFlags usage_flags = 0, VkMemoryPropertyFlags memory_properties = 0, VkSharingMode sharing_mode = VK_SHARING_MODE_EXCLUSIVE, VkBufferCreateFlags create_flags = 0);
 
     };
 

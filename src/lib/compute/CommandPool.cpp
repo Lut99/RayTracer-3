@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 13:03:50
  * Last edited:
- *   27/04/2021, 14:39:38
+ *   27/04/2021, 16:23:25
  * Auto updated?
  *   Yes
  *
@@ -81,7 +81,7 @@ static void populate_begin_info(VkCommandBufferBeginInfo& begin_info, VkCommandB
 }
 
 /* Function that populates a given VkSubmitINfo struct with the given values. */
-static void populate_submit_info(VkSubmitInfo& submit_info, VkCommandBuffer vk_command_buffer) {
+static void populate_submit_info(VkSubmitInfo& submit_info, const VkCommandBuffer& vk_command_buffer) {
     DENTER("populate_submit_info");
 
     // Set to default
@@ -91,6 +91,10 @@ static void populate_submit_info(VkSubmitInfo& submit_info, VkCommandBuffer vk_c
     // Set the command buffer to submit
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &vk_command_buffer;
+
+    // Make sure that there are no semaphores used
+    submit_info.signalSemaphoreCount = 0;
+    submit_info.waitSemaphoreCount = 0;
 
     // Done
     DRETURN;

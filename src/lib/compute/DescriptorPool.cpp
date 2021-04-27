@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:38:48
  * Last edited:
- *   26/04/2021, 16:57:37
+ *   27/04/2021, 16:52:11
  * Auto updated?
  *   Yes
  *
@@ -27,6 +27,52 @@ using namespace CppDebugger::SeverityValues;
 
 
 /***** POPULATE FUNCTIONS *****/
+/* Populates a given VkDescriptorBufferInfo struct. */
+static void populate_buffer_info(VkDescriptorBufferInfo& buffer_info, const Buffer& buffer) {
+    DENTER("populate_buffer_info");
+
+    // Set to default
+    buffer_info = {};
+    
+    // Set the memory properties
+    buffer_info.buffer = buffer.buffer();
+    buffer_info.offset = 0; // Note that this offset is (probably) relative to the buffer itself, not the vk_memory object it was allocated with
+    buffer_info.range = buffer.size();
+
+    // Done
+    DRETURN;
+}
+
+/* Populates a given VkWriteDescriptorSet struct. */
+static void populate_write_info(VkWriteDescriptorSet& write_info, VkDescriptorSet vk_descriptor_set, uint32_t bind_index, const VkDescriptorBufferInfo& buffer_info) {
+    DENTER("populate_write_info");
+
+    // Set to default
+    write_info = {};
+    write_info.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+
+    // Set the set to which we write
+    write_info.dstSet = vk_descriptor_set;
+
+    // Set the binding to use; this one's equal to the sub-binding in the shader
+    write_info.dstBinding = bind_index;
+    
+    // Set the element of the array. For now, we fix this at 0
+    write_info.dstArrayElement = 0;
+
+    // Next, set which type of descriptor this is and how many
+    write_info.descriptorCount = 1;
+    write_info.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+
+    // Then, the data to pass. This can be of multiple forms, but we pass a buffer.
+    write_info.pBufferInfo = &buffer_info;
+    write_info.pImageInfo = nullptr;
+    write_info.pTexelBufferView = nullptr;
+
+    // Done
+    DRETURN;
+}
+
 /* Populates a given VkDescriptorPoolSize struct. */
 static void populate_descriptor_pool_size(VkDescriptorPoolSize& descriptor_pool_size, VkDescriptorType descriptor_type, uint32_t n_descriptors) {
     DENTER("populate_descriptor_pool_size");
@@ -63,7 +109,7 @@ static void populate_descriptor_pool_info(VkDescriptorPoolCreateInfo& descriptor
 }
 
 /* Populates a given VkDescriptorSetAllocateInfo struct. */
-static void populate_descriptor_set_info(VkDescriptorSetAllocateInfo& descriptor_set_info, VkDescriptorPool vk_descriptor_pool, const DescriptorSetLayout& descriptor_set_layout, uint32_t n_sets) {
+static void populate_descriptor_set_info(VkDescriptorSetAllocateInfo& descriptor_set_info, VkDescriptorPool vk_descriptor_pool, const Tools::Array<VkDescriptorSetLayout>& descriptor_set_layouts, uint32_t n_sets) {
     DENTER("populate_descriptor_set_info");
 
     // Set to default
@@ -77,7 +123,7 @@ static void populate_descriptor_set_info(VkDescriptorSetAllocateInfo& descriptor
     descriptor_set_info.descriptorSetCount = n_sets;
 
     // Set the layout for this descriptor
-    descriptor_set_info.pSetLayouts = &descriptor_set_layout.descriptor_set_layout();
+    descriptor_set_info.pSetLayouts = descriptor_set_layouts.rdata();
 
     // Done
     DRETURN;
@@ -92,6 +138,25 @@ static void populate_descriptor_set_info(VkDescriptorSetAllocateInfo& descriptor
 DescriptorSet::DescriptorSet(VkDescriptorSet descriptor_set) :
     vk_descriptor_set(descriptor_set)
 {}
+
+/* Binds this descriptor set with the contents of a given buffer to the given bind index. */
+void DescriptorSet::set(const GPU& gpu, uint32_t bind_index, const Buffer& buffer) {
+    DENTER("Compute::DescriptorSet::set");
+
+    // Start by creating the buffer info so that the descriptor knows smthng about the buffer
+    VkDescriptorBufferInfo buffer_info;
+    populate_buffer_info(buffer_info, buffer);
+
+    // Next, generate a VkWriteDescriptorSet with which we populate the buffer information
+    // Can also use copies, for descriptor-to-descriptor stuff.
+    VkWriteDescriptorSet write_info;
+    populate_write_info(write_info, this->vk_descriptor_set, bind_index, buffer_info);
+
+    // With the write info populated, update this set. Note that this can be used to perform multiple descriptor write & copies simultaneously
+    vkUpdateDescriptorSets(gpu, 1, &write_info, 0, nullptr);
+
+    DRETURN;
+}
 
 
 
@@ -182,7 +247,7 @@ DescriptorSet DescriptorPool::allocate(const DescriptorSetLayout& descriptor_set
 
     // Next, populate the create info
     VkDescriptorSetAllocateInfo descriptor_set_info;
-    populate_descriptor_set_info(descriptor_set_info, this->vk_descriptor_pool, descriptor_set_layout, 1);
+    populate_descriptor_set_info(descriptor_set_info, this->vk_descriptor_pool, Tools::Array<VkDescriptorSetLayout>({ descriptor_set_layout.descriptor_set_layout() }), 1);
 
     // We can now call the allocate function
     VkResult vk_result;
@@ -206,13 +271,19 @@ Tools::Array<DescriptorSet> DescriptorPool::nallocate(uint32_t n_sets, const Des
     #endif
 
     // Check if we have enough space left
-    if (static_cast<uint32_t>(this->vk_descriptor_sets.size()) + n_sets >= this->max_size) {
-        DLOG(fatal, "Cannot allocate " + std::to_string(n_sets) + " new DescriptorSets: only space for " + std::to_string(this->max_size - static_cast<uint32_t>(this->vk_descriptor_sets.size())) + "sets");
+    if (static_cast<uint32_t>(this->vk_descriptor_sets.size()) + n_sets > this->max_size) {
+        DLOG(fatal, "Cannot allocate " + std::to_string(n_sets) + " new DescriptorSets: only space for " + std::to_string(this->max_size - static_cast<uint32_t>(this->vk_descriptor_sets.size())) + " sets");
+    }
+
+    // If we do, prepare a set of n times the same descriptor set layout
+    Tools::Array<VkDescriptorSetLayout> descriptor_set_layouts(n_sets);
+    for (size_t i = 0; i < descriptor_set_layouts.capacity(); i++) {
+        descriptor_set_layouts.push_back(descriptor_set_layout);
     }
 
     // Next, populate the create info
     VkDescriptorSetAllocateInfo descriptor_set_info;
-    populate_descriptor_set_info(descriptor_set_info, this->vk_descriptor_pool, descriptor_set_layout, n_sets);
+    populate_descriptor_set_info(descriptor_set_info, this->vk_descriptor_pool, descriptor_set_layouts, n_sets);
 
     // We can now call the allocate function
     VkResult vk_result;

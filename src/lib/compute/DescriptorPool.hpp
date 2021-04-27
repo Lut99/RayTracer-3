@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:39:16
  * Last edited:
- *   26/04/2021, 15:52:05
+ *   27/04/2021, 16:34:33
  * Auto updated?
  *   Yes
  *
@@ -19,6 +19,7 @@
 
 #include <vulkan/vulkan.h>
 
+#include "MemoryPool.hpp"
 #include "DescriptorSetLayout.hpp"
 #include "tools/Array.hpp"
 
@@ -38,6 +39,9 @@ namespace RayTracer::Compute {
         friend class DescriptorPool;
 
     public:
+        /* Binds this descriptor set with the contents of a given buffer to the given bind index. */
+        void set(const GPU& gpu, uint32_t bind_index, const Buffer& buffer);
+
         /* Explicity returns the internal VkDescriptorSet object. */
         inline VkDescriptorSet descriptor_set() const { return this->vk_descriptor_set; }
         /* Implicitly returns the internal VkDescriptorSet object. */

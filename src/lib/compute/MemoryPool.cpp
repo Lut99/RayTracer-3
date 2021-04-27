@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   27/04/2021, 14:17:40
+ *   27/04/2021, 16:05:23
  * Auto updated?
  *   Yes
  *
@@ -62,15 +62,16 @@ void populate_allocate_info(VkMemoryAllocateInfo& allocate_info, uint32_t memory
 }
 
 /* Populates a given VkMappedMemoryRange struct. */
-void populate_memory_range(VkMappedMemoryRange& memory_range, VkDeviceMemory vk_memory, VkDeviceSize vk_memory_size) {
+void populate_memory_range(VkMappedMemoryRange& memory_range, VkDeviceMemory vk_memory, VkDeviceSize vk_memory_offset, VkDeviceSize vk_memory_size) {
     DENTER("populate_memory_range");
 
     // Set to default
     memory_range = {};
+    memory_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
 
     // Tell it the memory and which part of the device memory is used
     memory_range.memory = vk_memory;
-    memory_range.offset = vk_memory_size;
+    memory_range.offset = vk_memory_offset;
     
     // Set the number of bytes mapped
     memory_range.size = vk_memory_size;
@@ -124,7 +125,7 @@ void  Buffer::flush(const GPU& gpu) {
 
     // Prepare the call to the flush function
     VkMappedMemoryRange memory_range;
-    populate_memory_range(memory_range, this->vk_memory, this->vk_memory_size);
+    populate_memory_range(memory_range, this->vk_memory, this->vk_memory_offset, this->vk_memory_size);
 
     // Do the flush call
     VkResult vk_result;
@@ -595,7 +596,7 @@ void Compute::swap(MemoryPool& mp1, MemoryPool& mp2) {
 
 
 /* Static function that helps users decide the best memory queue. */
-uint32_t MemoryPool::select_memory_type(const GPU& gpu, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode, VkBufferCreateFlags create_flags) {
+uint32_t MemoryPool::select_memory_type(const GPU& gpu, VkBufferUsageFlags usage_flags, VkMemoryPropertyFlags memory_properties, VkSharingMode sharing_mode, VkBufferCreateFlags create_flags) {
     DENTER("Compute::MemoryPool::select_memory_type");
 
     // Get the available memory in the internal device
@@ -622,7 +623,7 @@ uint32_t MemoryPool::select_memory_type(const GPU& gpu, VkBufferUsageFlags usage
 
     // Try to find suitable memory (i.e., check if the device has enough memory bits(?) and if the required properties match)
     for (uint32_t i = 0; i < gpu_properties.memoryTypeCount; i++) {
-        if (mem_requirements.memoryTypeBits & (1 << i)) {
+        if (mem_requirements.memoryTypeBits & (1 << i) && (gpu_properties.memoryTypes[i].propertyFlags & memory_properties) == memory_properties) {
             DRETURN i;
         }
     }

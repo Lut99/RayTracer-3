@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:49
  * Last edited:
- *   27/04/2021, 14:39:04
+ *   27/04/2021, 16:06:45
  * Auto updated?
  *   Yes
  *
@@ -466,6 +466,9 @@ GPU::GPU(const Tools::Array<const char*>& instance_extensions, const Tools::Arra
     // As a quick next step, fetch the relevant device queues
     DLOG(info, "Fetching device queues...");
     vkGetDeviceQueue(this->vk_device, this->vk_physical_device_queue_info.compute(), 0, &this->vk_compute_queue);
+    if (this->vk_physical_device_queue_info.n_queues() > 1) {
+        vkGetDeviceQueue(this->vk_device, this->vk_physical_device_queue_info.memory(), 0, &this->vk_memory_queue);
+    }
 
 
 
