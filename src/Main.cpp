@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   26/04/2021, 17:20:36
+ *   27/04/2021, 14:09:23
  * Auto updated?
  *   Yes
  *
@@ -19,6 +19,7 @@
 #include "compute/MemoryPool.hpp"
 #include "compute/DescriptorSetLayout.hpp"
 #include "compute/DescriptorPool.hpp"
+#include "compute/CommandPool.hpp"
 
 using namespace std;
 using namespace RayTracer;
@@ -57,6 +58,8 @@ int main() {
         // Declare the memory pools
         MemoryPool mpool(gpu, MemoryPool::select_memory_type(gpu, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT), 1024);
         DescriptorPool dpool(gpu, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, 1);
+        CommandPool compute_cpool(gpu, gpu.queue_info().compute());
+        CommandPool mem_cpool(gpu, gpu.queue_info().memory());
 
         // Define a descriptor set layout
         DescriptorSetLayout layout(gpu, 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_COMPUTE_BIT);

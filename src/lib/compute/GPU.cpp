@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:49
  * Last edited:
- *   26/04/2021, 16:57:20
+ *   27/04/2021, 14:39:04
  * Auto updated?
  *   Yes
  *
@@ -319,6 +319,7 @@ DeviceQueueInfo::DeviceQueueInfo() {
 
     // We mark it as didn't find
     this->supports_compute = false;
+    this->supports_memory = false;
 
     // Done!
     DRETURN;
@@ -336,17 +337,24 @@ DeviceQueueInfo::DeviceQueueInfo(VkPhysicalDevice vk_physical_device)
     vkGetPhysicalDeviceQueueFamilyProperties(vk_physical_device, &n_supported_queues, supported_queues.wdata(n_supported_queues));
 
     // Loop through the queues to find the compute queue
+    this->supports_compute = false;
+    this->supports_memory = false;
     for (size_t i = 0; i < supported_queues.size(); i++) {
-        // If the current queue is the compute queue, we're done
+        // If the current queue is the compute queue, mark that it's supported
         if (supported_queues[i].queueFlags & VK_QUEUE_COMPUTE_BIT) {
             this->compute_index = (uint32_t) i;
             this->supports_compute = true;
-            DRETURN;
+        }
+        
+        // If the current queue is the memory queue, mark that it's supported
+        if (supported_queues[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
+            // Only note its existance if it's a) the first queue we see or b) a queue that is not the compute queue
+            if (!this->supports_memory || !(supported_queues[i].queueFlags & VK_QUEUE_COMPUTE_BIT)) {
+                this->memory_index = (uint32_t) i;
+                this->supports_memory = true;
+            }
         }
     }
-
-    // Otherwise, we mark it as didn't find
-    this->supports_compute = false;
 
     // Done!
     DRETURN;
@@ -437,7 +445,7 @@ GPU::GPU(const Tools::Array<const char*>& instance_extensions, const Tools::Arra
 
     // Collect the qeuues we want to use for this device(s) by creating a list of queue create infos.
     Tools::Array<VkDeviceQueueCreateInfo> queue_infos;
-    const Tools::Array<Tools::Array<float>> queue_priorities({ Tools::Array<float>({ 1.0f }) });
+    const Tools::Array<Tools::Array<float>> queue_priorities({ Tools::Array<float>({ 1.0f }), Tools::Array<float>({ 1.0f }) });
     populate_queue_infos(queue_infos, this->vk_physical_device_queue_info, queue_priorities);
 
     // Next, populate the list of features we like from our device.

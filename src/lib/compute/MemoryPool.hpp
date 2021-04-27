@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:35
  * Last edited:
- *   26/04/2021, 17:29:33
+ *   27/04/2021, 14:17:18
  * Auto updated?
  *   Yes
  *
@@ -19,6 +19,7 @@
 #include <vulkan/vulkan.h>
 #include <unordered_map>
 
+#include "CommandPool.hpp"
 #include "tools/Array.hpp"
 
 #include "GPU.hpp"
@@ -32,25 +33,38 @@ namespace RayTracer::Compute {
     private:
         /* The actual VkBuffer object constructed. */
         VkBuffer vk_buffer;
+
         /* Reference to the large memory block where this buffer is allocated. */
         VkDeviceMemory vk_memory;
+        /* The offset of the internal buffer. */
+        VkDeviceSize vk_memory_offset;
         /* The size of the internal buffer. */
-        VkDeviceSize vk_buffer_size;
+        VkDeviceSize vk_memory_size;
         /* The properties of the memory for this buffer. */
         VkMemoryPropertyFlags vk_memory_properties;
 
+        /* List of pointers, that keep track of mapped memory areas. */
+        Tools::Array<void*> mapped_areas;
+
         /* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
-        Buffer(VkBuffer buffer, VkDeviceMemory vk_memory, VkDeviceSize buffer_size, VkMemoryPropertyFlags memory_properties);
+        Buffer(VkBuffer buffer, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkMemoryPropertyFlags memory_properties);
         
         /* Mark the MemoryPool as friend. */
         friend class MemoryPool;
 
     public:
-        /* Directly sets the value of this buffer. Only possible if the VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT is set for the memory of this buffer's pool. */
-        void set(const GPU& gpu, void* data, size_t n_bytes);
+        /* Maps the buffer to host-memory so it can be written to. Only possible if the VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT is set for the memory of this buffer's pool. Note that the memory is NOT automatically unmapped if the Buffer object is destroyed. */
+        void map(const GPU& gpu, void** mapped_memory);
+        /* Flushes all unflushed memory operations done on mapped memory. If the memory of this buffer has VK_MEMORY_PROPERTY_HOST_COHERENT_BIT set, then nothing is done as the memory is already automatically flushed. */
+        void flush(const GPU& gpu);
+        /* Unmaps buffer's memory. */
+        void unmap(const GPU& gpu);
+
+        /* Copies this buffer's content to another given buffer. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Optionally waits until the queue is idle before returning. Note that the given buffer needn't come from the same memory pool. */
+        void copy(const GPU& gpu, CommandBuffer& command_buffer, Buffer& destination, bool wait_queue_idle = true);
 
         /* Returns the size of the buffer, in bytes. */
-        VkDeviceSize size() const { return this->vk_buffer_size; }
+        VkDeviceSize size() const { return this->vk_memory_size; }
         /* Explicit retrieval of the internal buffer object. */
         inline VkBuffer buffer() const { return this->vk_buffer; }
         /* Implicit retrieval of the internal buffer object. */
@@ -110,7 +124,7 @@ namespace RayTracer::Compute {
 
 
         /* Private helper function that takes a UsedBlock, and uses it to initialize the given buffer. */
-        inline static Buffer init_buffer(const UsedBlock& used_block, VkDeviceMemory vk_memory, VkMemoryPropertyFlags memory_properties) { return Buffer(used_block.vk_buffer, vk_memory, used_block.length, memory_properties); }
+        inline static Buffer init_buffer(const UsedBlock& used_block, VkDeviceMemory vk_memory, VkMemoryPropertyFlags memory_properties) { return Buffer(used_block.vk_buffer, vk_memory, used_block.start, used_block.length, memory_properties); }
 
     public:
         /* Constructor for the MemoryPool class, which takes a device to allocate on, the type of memory we will allocate on and the total size of the allocated block. */

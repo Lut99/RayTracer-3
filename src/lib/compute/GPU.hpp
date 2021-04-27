@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:54
  * Last edited:
- *   17/04/2021, 16:22:45
+ *   27/04/2021, 14:09:02
  * Auto updated?
  *   Yes
  *
@@ -30,21 +30,31 @@ namespace RayTracer::Compute {
         /* Boolean that keeps track of whether or not the compute queue is supported. */
         bool supports_compute;
 
+        /* The index of the memory family queue on the device. */
+        uint32_t memory_index;
+        /* Boolean that keeps track of whether or not the memory queue is supported. */
+        bool supports_memory;
+
     public:
         /* Default constructor for the DeviceQueueInfo class, which initializes this to "nothing supported". */
         DeviceQueueInfo();
         /* Constructor for the DeviceQueueInfo class, which takes the index of the compute queue and a boolean indicating whether it exists or not. */
         DeviceQueueInfo(VkPhysicalDevice vk_physical_device);
 
-        /* Returns the compute index of the GPU's compute queue. Note that the value returned by this is undefined if can_compute == false. */
+        /* Returns the queue index of the GPU's compute queue. Note that the value returned by this is undefined if can_compute == false. */
         inline uint32_t compute() const { return this->compute_index; }
         /* Returns whether or not the compute queue is supported by this device. */
         inline bool can_compute() const { return this->supports_compute; }
 
+        /* Returns the queue index of the GPU's memory queue. Note that the value returned by this is undefined if can_memory == false. Also note that this may be the same as the compute queue. */
+        inline uint32_t memory() const { return this->memory_index; }
+        /* Returns whether or not the compute queue is supported by this device. */
+        inline bool can_memory() const { return this->supports_memory; }
+
         /* Returns an Array with all the queue indices. The order is compute. */
-        inline Tools::Array<uint32_t> queues() const { return Tools::Array<uint32_t>({ this->compute_index }); }
+        inline Tools::Array<uint32_t> queues() const { return this->compute_index != this->memory_index ? Tools::Array<uint32_t>({ this->compute_index, this->memory_index }) : Tools::Array<uint32_t>({ this->compute_index }); }
         /* Returns the number of queues in the class. */
-        inline uint32_t n_queues() const { return 1; }
+        inline uint32_t n_queues() const { return this->compute_index != this->memory_index ? 2 : 1; }
 
     };
 
@@ -70,6 +80,8 @@ namespace RayTracer::Compute {
         VkDevice vk_device;
         /* The compute queue on the device. */
         VkQueue vk_compute_queue;
+        /* The memory queue on the device. Might be the same. */
+        VkQueue vk_memory_queue;
 
     public:
         /* Constructor for the GPU class, which takes a list of required extensions to enable on the GPU and optionally a list of validation layers to add. */
@@ -104,8 +116,8 @@ namespace RayTracer::Compute {
 
         /* Explicitly provides (read-only) access to the internal vk_compute_queue object. */
         inline VkQueue compute_queue() const { return this->vk_compute_queue; }
-        /* Implicitly provides (read-only) access to the internal vk_compute_queue object. */
-        inline operator VkQueue() const { return this->vk_compute_queue; }
+        /* Explicitly provides (read-only) access to the internal vk_memory_queue object. */
+        inline VkQueue memory_queue() const { return this->vk_memory_queue; }
 
         /* Copy assignment operator for the GPU class, which is also deleted. */
         GPU& operator=(const GPU& other) = delete;

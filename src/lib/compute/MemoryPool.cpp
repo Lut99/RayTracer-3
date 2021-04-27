@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   26/04/2021, 17:30:27
+ *   27/04/2021, 14:17:40
  * Auto updated?
  *   Yes
  *
@@ -61,39 +61,114 @@ void populate_allocate_info(VkMemoryAllocateInfo& allocate_info, uint32_t memory
     DRETURN;
 }
 
+/* Populates a given VkMappedMemoryRange struct. */
+void populate_memory_range(VkMappedMemoryRange& memory_range, VkDeviceMemory vk_memory, VkDeviceSize vk_memory_size) {
+    DENTER("populate_memory_range");
+
+    // Set to default
+    memory_range = {};
+
+    // Tell it the memory and which part of the device memory is used
+    memory_range.memory = vk_memory;
+    memory_range.offset = vk_memory_size;
+    
+    // Set the number of bytes mapped
+    memory_range.size = vk_memory_size;
+
+    DRETURN;
+}
+
 
 
 
 
 /***** BUFFER CLASS *****/
 /* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
-Buffer::Buffer(VkBuffer buffer, VkDeviceMemory vk_memory, VkDeviceSize buffer_size, VkMemoryPropertyFlags memory_properties) :
+Buffer::Buffer(VkBuffer buffer, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkMemoryPropertyFlags memory_properties) :
     vk_buffer(buffer),
     vk_memory(vk_memory),
-    vk_buffer_size(buffer_size),
+    vk_memory_offset(memory_offset),
+    vk_memory_size(memory_size),
     vk_memory_properties(memory_properties)
 {}
 
 
 
-/* Directly sets the value of this buffer. Only possible if the VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT is set for the memory of this buffer's pool. */
-void Buffer::set(const GPU& gpu, void* data, size_t n_bytes) {
-    DENTER("Compute::Buffer::set");
+/* Maps the buffer to host-memory so it can be written to. Only possible if the VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT is set for the memory of this buffer's pool. Note that the memory is NOT automatically unmapped if the Buffer object is destroyed. */
+void  Buffer::map(const GPU& gpu, void** mapped_memory) {
+    DENTER("Compute::Buffer::map");
 
     // If this buffer does not have the host bit set, then we stop immediatement
     if (!(this->vk_memory_properties & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) {
-        DLOG(fatal, "Cannot set a buffer that is not visible by the CPU.");
-    }
-
-    // Next, make sure the buffer has enough memory
-    if (this->vk_buffer_size < (VkDeviceSize) n_bytes) {
-        DLOG(fatal, "Buffer of " + std::to_string(this->vk_buffer_size) + " bytes is too small to receive " + std::to_string(n_bytes) + " bytes of data.");
+        DLOG(fatal, "Cannot map a buffer that is not visible by the CPU.");
     }
 
     // Now, we map the memory to a bit of host-side memory
     VkResult vk_result;
-    void* mbuffer;
-    if ((vk_result = vkMapMemory(gpu, this->vk_memory, )))
+    if ((vk_result = vkMapMemory(gpu, this->vk_memory, this->vk_memory_offset, this->vk_memory_size, 0, mapped_memory)) != VK_SUCCESS) {
+        DLOG(fatal, "Could not map buffer memory to CPU-memory: " + vk_error_map[vk_result]);
+    }
+
+    // Done
+    DRETURN;
+}
+
+/* Flushes all unflushed memory operations done on mapped memory. If the memory of this buffer has VK_MEMORY_PROPERTY_HOST_COHERENT_BIT set, then nothing is done as the memory is already automatically flushed. */
+void  Buffer::flush(const GPU& gpu) {
+    DENTER("Compute::Buffer::flush");
+
+    // If this buffer is coherent, quite immediately
+    if (!(this->vk_memory_properties & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) {
+        DRETURN;
+    }
+
+    // Prepare the call to the flush function
+    VkMappedMemoryRange memory_range;
+    populate_memory_range(memory_range, this->vk_memory, this->vk_memory_size);
+
+    // Do the flush call
+    VkResult vk_result;
+    if ((vk_result = vkFlushMappedMemoryRanges(gpu, 1, &memory_range)) != VK_SUCCESS) {
+        DLOG(fatal, "Could not flush mapped buffer memory: " + vk_error_map[vk_result]);
+    }
+
+    // Done
+    DRETURN;
+}
+
+/* Unmaps buffer's memory. */
+void  Buffer::unmap(const GPU& gpu) {
+    DENTER("Compute::Buffer::unmap");
+
+    // Simply call unmap, done
+    vkUnmapMemory(gpu, this->vk_memory);
+
+    DRETURN;
+}
+
+
+
+/* Copies this buffer's content to another given buffer. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Note that the given buffer needn't come from the same memory pool. */
+void Buffer::copy(const GPU& gpu, CommandBuffer& command_buffer, Buffer& destination, bool wait_queue_idle) {
+    DENTER("Compute::Buffer::copy");
+
+    // First, check if the destination buffer is large enough
+    if (destination.vk_memory_size < this->vk_memory_size) {
+        DLOG(fatal, "Cannot copy " + std::to_string(this->vk_memory_size) + " bytes to buffer of only " + std::to_string(destination.vk_memory_size) + " bytes.");
+    }
+
+    // Next, start recording the given command buffer, and we'll tell Vulkan we use this recording only once
+    command_buffer.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+
+    // We schedule the copy by populating a struct
+    VkBufferCopy copy_region{};
+    copy_region.srcOffset = this->vk_memory_offset;
+    copy_region.dstOffset = destination.vk_memory_offset;
+    copy_region.size = this->vk_memory_size;
+    vkCmdCopyBuffer(command_buffer, this->vk_buffer, destination.vk_buffer, 1, &copy_region);
+
+    // Since that's all, submit the queue. Note that we only return once the copy is 
+    command_buffer.end(gpu.memory_queue(), wait_queue_idle);
 
     DRETURN;
 }
