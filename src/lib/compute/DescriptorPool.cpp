@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:38:48
  * Last edited:
- *   27/04/2021, 18:17:20
+ *   28/04/2021, 15:09:59
  * Auto updated?
  *   Yes
  *
@@ -344,7 +344,7 @@ void Compute::swap(DescriptorPool& dp1, DescriptorPool& dp2) {
 
     #ifndef NDEBUG
     // If the GPU is not the same, then initialize to all nullptrs and everything
-    if (dp1.gpu.name() != dp2.gpu.name()) {
+    if (dp1.gpu != dp2.gpu) {
         DLOG(fatal, "Cannot swap descriptor pools with different GPUs");
     }
     #endif

@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:39:16
  * Last edited:
- *   27/04/2021, 18:13:32
+ *   28/04/2021, 15:07:07
  * Auto updated?
  *   Yes
  *
@@ -56,10 +56,11 @@ namespace RayTracer::Compute {
 
     /* The DescriptorPool class, which is used to generate and manage descriptor(sets) for describing buffers. */
     class DescriptorPool {
-    private:
+    public:
         /* Constant reference to the GPU we allocate this pool on. */
         const GPU& gpu;
 
+    private:
         /* The internal pool used for allocating new pools. */
         VkDescriptorPool vk_descriptor_pool;
         /* The maximum number of sets allowed in this pool. */

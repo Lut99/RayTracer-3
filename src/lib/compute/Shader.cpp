@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 14:55:16
  * Last edited:
- *   27/04/2021, 15:27:15
+ *   28/04/2021, 15:38:55
  * Auto updated?
  *   Yes
  *
@@ -175,7 +175,7 @@ void Compute::swap(Shader& s1, Shader& s2) {
 
     #ifndef NDEBUG
     // If the GPU is not the same, then initialize to all nullptrs and everything
-    if (s1.gpu.name() != s2.gpu.name()) {
+    if (s1.gpu != s2.gpu) {
         DLOG(fatal, "Cannot swap shaders with different GPUs");
     }
     #endif

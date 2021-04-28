@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 15:33:41
  * Last edited:
- *   27/04/2021, 18:04:38
+ *   28/04/2021, 15:10:04
  * Auto updated?
  *   Yes
  *
@@ -181,7 +181,7 @@ void Compute::swap(DescriptorSetLayout& dsl1, DescriptorSetLayout& dsl2) {
 
     #ifndef NDEBUG
     // If the GPU is not the same, then initialize to all nullptrs and everything
-    if (dsl1.gpu.name() != dsl2.gpu.name()) {
+    if (dsl1.gpu != dsl2.gpu) {
         DLOG(fatal, "Cannot swap descriptor set layouts with different GPUs");
     }
     #endif

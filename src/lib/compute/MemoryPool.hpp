@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:35
  * Last edited:
- *   27/04/2021, 18:28:36
+ *   28/04/2021, 15:06:54
  * Auto updated?
  *   Yes
  *
@@ -46,9 +46,6 @@ namespace RayTracer::Compute {
         /* The properties of the memory for this buffer. */
         VkMemoryPropertyFlags vk_memory_properties;
 
-        /* List of pointers, that keep track of mapped memory areas. */
-        Tools::Array<void*> mapped_areas;
-
         /* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
         Buffer(VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkMemoryPropertyFlags memory_properties);
         
@@ -57,14 +54,14 @@ namespace RayTracer::Compute {
 
     public:
         /* Maps the buffer to host-memory so it can be written to. Only possible if the VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT is set for the memory of this buffer's pool. Note that the memory is NOT automatically unmapped if the Buffer object is destroyed. */
-        void map(const GPU& gpu, void** mapped_memory);
+        void map(const GPU& gpu, void** mapped_memory) const;
         /* Flushes all unflushed memory operations done on mapped memory. If the memory of this buffer has VK_MEMORY_PROPERTY_HOST_COHERENT_BIT set, then nothing is done as the memory is already automatically flushed. */
-        void flush(const GPU& gpu);
+        void flush(const GPU& gpu) const;
         /* Unmaps buffer's memory. */
-        void unmap(const GPU& gpu);
+        void unmap(const GPU& gpu) const;
 
         /* Copies this buffer's content to another given buffer. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Optionally waits until the queue is idle before returning. Note that the given buffer needn't come from the same memory pool. */
-        void copyto(const GPU& gpu, CommandBuffer& command_buffer, Buffer& destination, bool wait_queue_idle = true);
+        void copyto(const GPU& gpu, CommandBuffer& command_buffer, const Buffer& destination, bool wait_queue_idle = true) const;
 
         /* Returns the size of the buffer, in bytes. */
         inline VkDeviceSize size() const { return this->vk_memory_size; }
@@ -84,6 +81,10 @@ namespace RayTracer::Compute {
 
     /* The MemoryPool class serves as a memory manager for our GPU memory. */
     class MemoryPool {
+    public:
+        /* Immutable reference to the GPU object where this pool is linked to. */
+        const GPU& gpu;
+
     private:
         /* Internal struct used to represent used memory blocks. */
         struct UsedBlock {
@@ -110,9 +111,6 @@ namespace RayTracer::Compute {
             VkDeviceSize length;  
         };
 
-        /* Immutable reference to the GPU object where this pool is linked to. */
-        const GPU& gpu;
-
         /* The allocated memory on the GPU. */
         VkDeviceMemory vk_memory;
         /* The type of memory we allocated for this. */
@@ -132,6 +130,10 @@ namespace RayTracer::Compute {
         inline static Buffer init_buffer(const UsedBlock& used_block, VkDeviceMemory vk_memory, VkMemoryPropertyFlags memory_properties) { return Buffer(used_block.vk_buffer, used_block.vk_usage_flags, vk_memory, used_block.start, used_block.length, memory_properties); }
 
     public:
+        /* The null handle for the pool. */
+        const static constexpr BufferHandle NullHandle = 0;
+
+        
         /* Constructor for the MemoryPool class, which takes a device to allocate on, the type of memory we will allocate on and the total size of the allocated block. */
         MemoryPool(const GPU& gpu, uint32_t memory_type, VkDeviceSize n_bytes, VkMemoryPropertyFlags memory_properties = 0);
         /* Copy constructor for the MemoryPool class, which is deleted. */

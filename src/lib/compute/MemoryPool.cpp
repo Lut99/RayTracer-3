@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   28/04/2021, 14:19:23
+ *   28/04/2021, 15:10:10
  * Auto updated?
  *   Yes
  *
@@ -13,6 +13,7 @@
  *   GPU memory that it can hand out to individual buffers.
 **/
 
+#include <limits>
 #include <CppDebugger.hpp>
 
 #include "ErrorCodes.hpp"
@@ -97,7 +98,7 @@ Buffer::Buffer(VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemor
 
 
 /* Maps the buffer to host-memory so it can be written to. Only possible if the VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT is set for the memory of this buffer's pool. Note that the memory is NOT automatically unmapped if the Buffer object is destroyed. */
-void  Buffer::map(const GPU& gpu, void** mapped_memory) {
+void  Buffer::map(const GPU& gpu, void** mapped_memory) const {
     DENTER("Compute::Buffer::map");
 
     // If this buffer does not have the host bit set, then we stop immediatement
@@ -116,7 +117,7 @@ void  Buffer::map(const GPU& gpu, void** mapped_memory) {
 }
 
 /* Flushes all unflushed memory operations done on mapped memory. If the memory of this buffer has VK_MEMORY_PROPERTY_HOST_COHERENT_BIT set, then nothing is done as the memory is already automatically flushed. */
-void  Buffer::flush(const GPU& gpu) {
+void  Buffer::flush(const GPU& gpu) const {
     DENTER("Compute::Buffer::flush");
 
     // If this buffer is coherent, quite immediately
@@ -139,7 +140,7 @@ void  Buffer::flush(const GPU& gpu) {
 }
 
 /* Unmaps buffer's memory. */
-void  Buffer::unmap(const GPU& gpu) {
+void  Buffer::unmap(const GPU& gpu) const {
     DENTER("Compute::Buffer::unmap");
 
     // Simply call unmap, done
@@ -151,7 +152,7 @@ void  Buffer::unmap(const GPU& gpu) {
 
 
 /* Copies this buffer's content to another given buffer. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Note that the given buffer needn't come from the same memory pool. */
-void Buffer::copyto(const GPU& gpu, CommandBuffer& command_buffer, Buffer& destination, bool wait_queue_idle) {
+void Buffer::copyto(const GPU& gpu, CommandBuffer& command_buffer, const Buffer& destination, bool wait_queue_idle) const {
     DENTER("Compute::Buffer::copyto");
 
     // First, check if the destination buffer is large enough
@@ -306,7 +307,13 @@ BufferHandle MemoryPool::allocate(VkDeviceSize n_bytes, VkBufferUsageFlags usage
     while (!unique) {
         unique = true;
         for (const std::pair<BufferHandle, UsedBlock>& p : this->vk_used_blocks) {
-            if (result == p.first) {
+            if (result == MemoryPool::NullHandle || result == p.first) {
+                // If result is the maximum value, then throw an error
+                if (result == std::numeric_limits<BufferHandle>::max()) {
+                    DLOG(fatal, "All buffer handles have been used.");
+                }
+
+                // Otherwise, increment and re-try
                 ++result;
                 unique = false;
                 break;
@@ -586,7 +593,7 @@ void Compute::swap(MemoryPool& mp1, MemoryPool& mp2) {
 
     #ifndef NDEBUG
     // If the GPU is not the same, then initialize to all nullptrs and everything
-    if (mp1.gpu.name() != mp2.gpu.name()) {
+    if (mp1.gpu != mp2.gpu) {
         DLOG(fatal, "Cannot swap memory pools with different GPUs");
     }
     #endif

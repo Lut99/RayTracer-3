@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 13:03:50
  * Last edited:
- *   27/04/2021, 16:23:25
+ *   28/04/2021, 15:09:53
  * Auto updated?
  *   Yes
  *
@@ -224,11 +224,11 @@ CommandPool::~CommandPool() {
 
 
 /* Returns a CommandBuffer from the given handle, which can be used as a CommandBuffer. Does perform checks on the handle validity. */
-CommandBuffer CommandPool::at(CommandBufferHandle buffer) {
+CommandBuffer CommandPool::at(CommandBufferHandle buffer) const {
     DENTER("Compute::CommandPool::at");
 
     // Check if the handle exists
-    std::unordered_map<CommandBufferHandle, VkCommandBuffer>::iterator iter = this->vk_command_buffers.find(buffer);
+    std::unordered_map<CommandBufferHandle, VkCommandBuffer>::const_iterator iter = this->vk_command_buffers.find(buffer);
     if (iter == this->vk_command_buffers.end()) {
         DLOG(fatal, "Given handle does not exist.");
     }
@@ -354,7 +354,7 @@ void Compute::swap(CommandPool& cp1, CommandPool& cp2) {
 
     #ifndef NDEBUG
     // If the GPU is not the same, then initialize to all nullptrs and everything
-    if (cp1.gpu.name() != cp2.gpu.name()) {
+    if (cp1.gpu != cp2.gpu) {
         DLOG(fatal, "Cannot swap command pools with different GPUs");
     }
     #endif

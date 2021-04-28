@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:54
  * Last edited:
- *   27/04/2021, 14:09:02
+ *   28/04/2021, 15:07:50
  * Auto updated?
  *   Yes
  *
@@ -93,7 +93,10 @@ namespace RayTracer::Compute {
         /* Destructor for the GPU class. */
         ~GPU();
 
-        
+        /* Allows the GPU to be compared with another GPU class. */
+        inline bool operator==(const GPU& other) const { return this->vk_device == other.vk_device; }
+        /* Allows the GPU to be (negated) compared with another GPU class. */
+        inline bool operator!=(const GPU& other) const { return this->vk_device != other.vk_device; }
 
         /* Explicitly provides (read-only) access to the internal vk_instance object. */
         inline VkInstance instance() const { return this->vk_instance; }

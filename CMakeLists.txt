@@ -48,5 +48,6 @@ target_link_libraries(raytracer PUBLIC
 # Define the custom commands to compile the shaders
 add_custom_target(shaders
     COMMAND glslc -fshader-stage=compute -o ${PROJECT_SOURCE_DIR}/bin/shaders/test_shader.spv ${PROJECT_SOURCE_DIR}/src/shaders/test_shader.glsl
+    COMMAND glslc -fshader-stage=compute -o ${PROJECT_SOURCE_DIR}/bin/shaders/simple_blue_background.spv ${PROJECT_SOURCE_DIR}/src/shaders/simple_blue_background.glsl
     COMMENT "Building shaders..."
 )

@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 14:44:28
  * Last edited:
- *   27/04/2021, 17:17:45
+ *   28/04/2021, 16:08:07
  * Auto updated?
  *   Yes
  *
@@ -37,8 +37,8 @@ namespace RayTracer::Compute {
         VkPipelineLayout vk_compute_pipeline_layout;
 
     public:
-        /* Constructor for the Pipeline class, which takes the GPU where we create it for, the shader to load and the set of descriptor set layouts which describe all buffers used in the pipeline.  */
-        Pipeline(const GPU& gpu, const Shader& shader, const Tools::Array<DescriptorSetLayout>& descriptor_set_layouts);
+        /* Constructor for the Pipeline class, which takes the GPU where we create it for, the shader to load and the set of descriptor set layouts which describe all buffers used in the pipeline. Optionally, a map of specialization constants can be given.  */
+        Pipeline(const GPU& gpu, const Shader& shader, const Tools::Array<DescriptorSetLayout>& descriptor_set_layouts, const std::unordered_map<uint32_t, std::tuple<uint32_t, void*>>& constant_map = {});
         /* Cope constructor for the Pipeline class, which is deleted. */
         Pipeline(const Pipeline& other) = delete;
         /* Move constructor for the Pipeline class. */

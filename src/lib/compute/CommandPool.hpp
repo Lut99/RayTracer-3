@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 13:03:55
  * Last edited:
- *   27/04/2021, 14:03:11
+ *   28/04/2021, 15:06:40
  * Auto updated?
  *   Yes
  *
@@ -56,10 +56,11 @@ namespace RayTracer::Compute {
 
     /* The CommandPool class, which manages CommandBuffers for a single device queue. */
     class CommandPool {
-    private:
+    public:
         /* Constant reference to the device that we're managing the pool for. */
         const GPU& gpu;
 
+    private:
         /* The command pool object that we wrap. */
         VkCommandPool vk_command_pool;
         /* The device queue index of this pool. */
@@ -79,9 +80,9 @@ namespace RayTracer::Compute {
         ~CommandPool();
 
         /* Returns a CommandBuffer from the given handle, which can be used as a CommandBuffer. Does not perform any checks on the handle validity. */
-        inline CommandBuffer operator[](CommandBufferHandle buffer) { return CommandBuffer(this->vk_command_buffers.at(buffer)); }
+        inline CommandBuffer operator[](CommandBufferHandle buffer) const { return CommandBuffer(this->vk_command_buffers.at(buffer)); }
         /* Returns a CommandBuffer from the given handle, which can be used as a CommandBuffer. Does perform checks on the handle validity. */
-        CommandBuffer at(CommandBufferHandle buffer);
+        CommandBuffer at(CommandBufferHandle buffer) const;
 
         /* Allocates a single, new command buffer of the given level. Returns by handle. */
         CommandBufferHandle allocate(VkCommandBufferLevel buffer_level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
