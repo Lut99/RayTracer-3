@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 13:03:55
  * Last edited:
- *   28/04/2021, 15:06:40
+ *   28/04/2021, 21:25:33
  * Auto updated?
  *   Yes
  *
@@ -41,9 +41,11 @@ namespace RayTracer::Compute {
 
     public:
         /* Begins recording the command buffer. Overwrites whatever is already recorded here, for some reason. Takes optional usage flags for this recording. */
-        void begin(VkCommandBufferUsageFlags usage_flags = 0);
+        void begin(VkCommandBufferUsageFlags usage_flags = 0) const;
         /* Ends recording the command buffer, but does not yet submit to any queue unless one is given. If so, then you can optionally specify to wait or not to wait for the queue to become idle. */
-        void end(VkQueue vk_queue = nullptr, bool wait_queue_idle = true);
+        void end(VkQueue vk_queue = nullptr, bool wait_queue_idle = true) const;
+        /* Return the VkSubmitInfo for this command buffer. */
+        VkSubmitInfo get_submit_info() const;
 
         /* Explititly returns the internal VkCommandBuffer object. */
         inline VkCommandBuffer command_buffer() const { return this->vk_command_buffer; }

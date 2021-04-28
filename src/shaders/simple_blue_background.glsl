@@ -22,8 +22,15 @@ layout (constant_id = 1) const int height = 0;
 
 /* Define the buffers. */
 // The input data for the camera
-layout(set = 0, binding = 0) uniform Camera {
-
+layout(set = 0, binding = 0) buffer Camera {
+    /* Vector placing the origin (middle) of the camera viewport in the world. */
+    vec3 origin;
+    /* Vector determining the horizontal line of the camera viewport in the game world, and also its conceptual size. */
+    vec3 horizontal;
+    /* Vector determining the vertical line of the camera viewport in the game world, and also its conceptual size. */
+    vec3 vertical;
+    /* Vector describing the lower left corner of the viewport. Shortcut based on the other three. */
+    vec3 lower_left_corner;
 } camera;
 
 // The output frame to which we render
@@ -54,19 +61,8 @@ void main() {
         float u = float(x) / (float(width) - 1.0);
         float v = float(height - 1 - y) / (float(height) - 1.0);
 
-        // Compute the conceptual width & height of the viewport
-        float viewport_height = 2.0;
-        float viewport_width = (float(width) / float(height)) * viewport_height;
-        float focal_length = 2.0;
-
-        // Compute the viewport's properties
-        vec3 origin = vec3(0.0, 0.0, 0.0);
-        vec3 horizontal = vec3(viewport_width, 0.0, 0.0);
-        vec3 vertical = vec3(0.0, viewport_height, 0.0);
-        vec3 lower_left_corner = origin - horizontal / 2 - vertical / 2 - vec3(0.0, 0.0, focal_length);
-
         // Compute the ray itself
-        vec3 ray = lower_left_corner + u * horizontal + v * vertical - origin;
+        vec3 ray = camera.lower_left_corner + u * camera.horizontal + v * camera.vertical - camera.origin;
 
         // Store the computed color
         frame.pixels[y * width + x] = vec4(ray_color(ray), 0.0);

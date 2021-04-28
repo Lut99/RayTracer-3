@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 13:03:50
  * Last edited:
- *   28/04/2021, 15:09:53
+ *   28/04/2021, 21:26:35
  * Auto updated?
  *   Yes
  *
@@ -111,7 +111,7 @@ CommandBuffer::CommandBuffer(VkCommandBuffer vk_command_buffer) :
 {}
 
 /* Begins recording the command buffer. Overwrites whatever is already recorded here, for some reason. Takes optional usage flags for this recording. */
-void CommandBuffer::begin(VkCommandBufferUsageFlags usage_flags) {
+void CommandBuffer::begin(VkCommandBufferUsageFlags usage_flags) const {
     DENTER("Compute::CommandBuffer::begin");
 
     // Populate the begin info struct
@@ -129,7 +129,7 @@ void CommandBuffer::begin(VkCommandBufferUsageFlags usage_flags) {
 }
 
 /* Ends recording the command buffer, but does not yet submit to any queue unless one is given. If so, then you can optionally specify to wait or not to wait for the queue to become idle. */
-void CommandBuffer::end(VkQueue vk_queue, bool wait_queue_idle) {
+void CommandBuffer::end(VkQueue vk_queue, bool wait_queue_idle) const {
     DENTER("Compute::CommandBuffer::end");
 
     // Whatever the parameters, always call the stop recording
@@ -159,6 +159,18 @@ void CommandBuffer::end(VkQueue vk_queue, bool wait_queue_idle) {
 
     // Done
     DRETURN;
+}
+
+/* Return the VkSubmitInfo for this command buffer. */
+VkSubmitInfo CommandBuffer::get_submit_info() const {
+    DENTER("Compute::CommandBuffer::get_submit_info");
+    
+    // Populate the submit info struct
+    VkSubmitInfo submit_info;
+    populate_submit_info(submit_info, this->vk_command_buffer);
+
+    // Done!
+    DRETURN submit_info;
 }
 
 

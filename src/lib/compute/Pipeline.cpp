@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 14:44:19
  * Last edited:
- *   28/04/2021, 16:10:52
+ *   28/04/2021, 21:21:03
  * Auto updated?
  *   Yes
  *
@@ -259,7 +259,7 @@ Pipeline::~Pipeline() {
 
 
 /* Schedules the compute pipeline in the given CommandBuffer. Note that we assume the command buffer has already been started. */
-void Pipeline::bind(const CommandBuffer& buffer) {
+void Pipeline::bind(const CommandBuffer& buffer) const {
     DENTER("Compute::Pipeline::schedule");
 
     // Only one command, ez game

@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   28/04/2021, 17:29:04
+ *   28/04/2021, 21:41:38
  * Auto updated?
  *   Yes
  *
@@ -22,6 +22,7 @@
 #include "compute/CommandPool.hpp"
 #include "compute/Pipeline.hpp"
 
+#include "camera/Camera.hpp"
 #include "frame/Frame.hpp"
 
 using namespace std;
@@ -73,24 +74,21 @@ int main() {
         MemoryPool transfer_mpool(gpu, transfer_mem_type, 1024 * 1024 * 1024, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
         MemoryPool dev_mpool(gpu, device_mem_type, 1024 * 1024 * 1024, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-        // Declare the descriptor pool
+        // Declare the descriptor pools
         DescriptorPool dpool(gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, 2);
 
-        // Initialize the compute command buffer
-        CommandBufferHandle cb_compute_h = compute_cpool.allocate();
-        CommandBuffer cb_compute = compute_cpool[cb_compute_h];
-
-        // Initialize the Frame we'll render to
-        Frame frame(gpu, dev_mpool, mem_cpool, width, height);
+        // Initialize the camera class to the set width & height
+        Camera camera(gpu, dev_mpool, mem_cpool);
+        camera.update(width, height, 2.0, 2.0, ((float) width / (float) height) * 2.0);
 
         // Define the descriptor set layout
         DescriptorSetLayout layout(gpu);
-        frame.add_binding(layout);
+        camera.set_layout(layout);
         layout.finalize();
 
-        // Define descriptors for the uniform buffers used in the pipeline & bind them to the buffers
+        // Define descriptors
         DescriptorSet descriptors = dpool.allocate(layout);
-        frame.set_descriptor(descriptors, 0);
+        camera.set_bindings(descriptors);
 
         // Finally, load the shader & create the Pipeline
         Shader shader(gpu, "bin/shaders/simple_blue_background.spv");
@@ -105,24 +103,16 @@ int main() {
 
         // We're done initializing, so hit 'em with a newspace
         DLOG(auxillary, "");
-
-
-
-        // With that prepared, it's time to record the command buffer
-        DLOG(info, "Recording command buffer...");
-        cb_compute.begin(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
-        compute_pipeline.bind(cb_compute);
-        descriptors.bind(cb_compute, compute_pipeline.layout());
-        vkCmdDispatch(cb_compute, (width / 32) + 1, (height / 32) + 1, 1);
-        DLOG(info, "Executing compute shader...");
-        cb_compute.end(gpu.compute_queue());
+        
+        // Render single frame with the chosen camera
+        camera.render(compute_cpool, compute_pipeline, gpu.compute_queue(), descriptors);
+        const Frame& result = camera.get_frame(transfer_mpool);
 
 
 
         // With the queue idle for sure, copy the result buffer back to the staging buffer
-        DLOG(info, "Retrieving frame...");
-        frame.sync(transfer_mpool);
-        frame.to_png("result.png");
+        DLOG(info, "Saving frame...");
+        result.to_png("result.png");
 
 
 

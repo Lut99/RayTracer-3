@@ -4,7 +4,7 @@
  * Created:
  *   28/04/2021, 14:28:32
  * Last edited:
- *   28/04/2021, 17:29:42
+ *   28/04/2021, 21:10:13
  * Auto updated?
  *   Yes
  *
@@ -18,6 +18,7 @@
 #include <fstream>
 #include <cstring>
 #include <cerrno>
+#include <limits>
 #include <CppDebugger.hpp>
 
 #include "LodePNG.hpp"
@@ -42,17 +43,29 @@ using namespace CppDebugger::SeverityValues;
 /***** FRAME CLASS *****/
 /* Constructor for the Frame class, which takes the GPU where the frame lives, a memory pool to allocate the GPU-side buffer from, a command pool to allocate a command buffer for memory operations from (the pool itself will not stay referenced) and the size of the image (in pixels). */
 Frame::Frame(const Compute::GPU& gpu, Compute::MemoryPool& mpool, Compute::CommandPool& cpool, uint32_t width, uint32_t height) :
+    Frame(gpu, mpool, cpool[cpool.allocate()], width, height)
+{
+    DENTER("Frame::Frame");
+    if (gpu != cpool.gpu) {
+        DLOG(fatal, "All pools must have the same GPU as passed (got " + cpool.gpu.name() + ", expected " + gpu.name());
+    }
+    DLEAVE;
+}
+
+/* Alternative constructor for the Frame, which takes the GPU where the frame lives, a memory pool to allocate the GPU-side buffer from, a command buffer for memory operations from and the size of the image (in pixels). */
+Frame::Frame(const Compute::GPU& gpu, Compute::MemoryPool& mpool, const Compute::CommandBuffer& cmd_buffer, uint32_t width, uint32_t height) :
     gpu(gpu),
     pool(&mpool),
     width(width),
     height(height),
-    cmd_buffer(cpool[cpool.allocate()])
+    cmd_buffer(cmd_buffer),
+    bind_index(numeric_limits<uint32_t>::max())
 {
     DENTER("Frame::Frame");
 
     // Before we begin, make sure that the gpu is consistent across all pools
-    if (gpu != mpool.gpu || gpu != cpool.gpu) {
-        DLOG(fatal, "All pools must have the same GPU as passed (got " + (gpu != mpool.gpu ? mpool.gpu.name() : cpool.gpu.name()) + ", expected " + gpu.name());
+    if (gpu != mpool.gpu) {
+        DLOG(fatal, "All pools must have the same GPU as passed (got " + mpool.gpu.name() + ", expected " + gpu.name());
     }
 
     // We start by allocating the CPU memory
@@ -71,7 +84,8 @@ Frame::Frame(const Frame& other) :
     pool(other.pool),
     width(other.width),
     height(other.height),
-    cmd_buffer(other.cmd_buffer)
+    cmd_buffer(other.cmd_buffer),
+    bind_index(other.bind_index)
 {
     DENTER("Frame::Frame(copy)");
 
@@ -97,7 +111,8 @@ Frame::Frame(Frame&& other) :
     height(other.height),
     cmd_buffer(other.cmd_buffer),
     cpu_buffer(other.cpu_buffer),
-    gpu_buffer(other.gpu_buffer)
+    gpu_buffer(other.gpu_buffer),
+    bind_index(other.bind_index)
 {
     // Set fields to nullptrs etc to avoid deallocation
     other.cpu_buffer = nullptr;
@@ -124,22 +139,27 @@ Frame::~Frame() {
 
 
 /* Given a DescriptorSetLayout, adds a new binding for the storage buffer used internally in the Frame. */
-void Frame::add_binding(Compute::DescriptorSetLayout& descriptor_set_layout) {
-    DENTER("Frame::add_binding");
+void Frame::set_layout(Compute::DescriptorSetLayout& descriptor_set_layout) {
+    DENTER("Frame::set_layout");
 
     // Simply call the add_binding with the correct parameters
-    descriptor_set_layout.add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
+    this->bind_index = descriptor_set_layout.add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
     
     // Done already!
     DRETURN;
 }
 
-/* Given a DescriptorSet, writes the internal buffer to it. The given index is the binding created using add_binding(). */
-void Frame::set_descriptor(Compute::DescriptorSet& descriptor_set, uint32_t binding_index) {
-    DENTER("Frame::set_descriptor");
+/* Given a DescriptorSet, writes the internal buffer to it. */
+void Frame::set_binding(Compute::DescriptorSet& descriptor_set) const {
+    DENTER("Frame::set_binding");
+
+    // Make sure the binding has been set
+    if (this->bind_index == numeric_limits<uint32_t>::max()) {
+        DLOG(fatal, "Cannot write to binding without having defined it in the layout.");
+    }
 
     // Simply call the add_binding with the correct parameters
-    descriptor_set.set(this->gpu, binding_index, Tools::Array<Buffer>({ (*(this->pool))[this->gpu_buffer] }));
+    descriptor_set.set(this->gpu, this->bind_index, Tools::Array<Buffer>({ (*(this->pool))[this->gpu_buffer] }));
     
     // Done already!
     DRETURN;
@@ -179,7 +199,7 @@ void Frame::sync(Compute::MemoryPool& staging_pool) {
 
 
 /* Writes the internal frame to disk as a PNG. Assumes that the CPU buffer is synchronized with the GPU one. */
-void Frame::to_png(const std::string& path) {
+void Frame::to_png(const std::string& path) const {
     DENTER("Frame::to_png");
 
     // Use the internal CPU buffer to construct a 0-255, four channel vector
@@ -206,7 +226,7 @@ void Frame::to_png(const std::string& path) {
 }
 
 /* Writes the internal frame to disk as a PPM. Assumes that the CPU buffer is synchronized with the GPU one. */
-void Frame::to_ppm(const std::string& path) {
+void Frame::to_ppm(const std::string& path) const {
     DENTER("Frame::to_ppm");
 
     // Open a file handle
@@ -268,4 +288,5 @@ void RayTracer::swap(Frame& f1, Frame& f2) {
     swap(f1.cmd_buffer, f2.cmd_buffer);
     swap(f1.cpu_buffer, f2.cpu_buffer);
     swap(f1.gpu_buffer, f2.gpu_buffer);
+    swap(f1.bind_index, f2.bind_index);
 }

@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 15:33:48
  * Last edited:
- *   27/04/2021, 18:01:27
+ *   28/04/2021, 20:26:13
  * Auto updated?
  *   Yes
  *
@@ -43,8 +43,8 @@ namespace RayTracer::Compute {
         /* Destructor for the DescriptorSetLayout class. */
         ~DescriptorSetLayout();
 
-        /* Adds a binding to the DescriptorSetLayout; i.e., one type of resource that a single descriptorset will bind. */
-        void add_binding(VkDescriptorType vk_descriptor_type, uint32_t n_descriptors, VkShaderStageFlags vk_shader_stage);
+        /* Adds a binding to the DescriptorSetLayout; i.e., one type of resource that a single descriptorset will bind. Returns the binding index of this binding. */
+        uint32_t add_binding(VkDescriptorType vk_descriptor_type, uint32_t n_descriptors, VkShaderStageFlags vk_shader_stage);
         /* Finalizes the descriptor layout. Note that no more bindings can be added after this point. */
         void finalize();
 

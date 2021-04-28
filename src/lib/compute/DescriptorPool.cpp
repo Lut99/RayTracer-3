@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:38:48
  * Last edited:
- *   28/04/2021, 15:09:59
+ *   28/04/2021, 21:21:21
  * Auto updated?
  *   Yes
  *
@@ -140,7 +140,7 @@ DescriptorSet::DescriptorSet(VkDescriptorSet descriptor_set) :
 {}
 
 /* Binds this descriptor set with the contents of a given buffer to the given bind index. Must be enough buffers to actually populate all bindings of the given type. */
-void DescriptorSet::set(const GPU& gpu, uint32_t bind_index, const Tools::Array<Buffer>& buffers) {
+void DescriptorSet::set(const GPU& gpu, uint32_t bind_index, const Tools::Array<Buffer>& buffers) const {
     DENTER("Compute::DescriptorSet::set");
 
     // We first create a list of buffer infos
@@ -167,7 +167,7 @@ void DescriptorSet::set(const GPU& gpu, uint32_t bind_index, const Tools::Array<
 }
 
 /* Binds the descriptor to the given (compute) command buffer. We assume that the recording already started. */
-void DescriptorSet::bind(const CommandBuffer& buffer, VkPipelineLayout pipeline_layout) {
+void DescriptorSet::bind(const CommandBuffer& buffer, VkPipelineLayout pipeline_layout) const {
     DENTER("Compute::DescriptorSet::bind");
 
     // Add the binding

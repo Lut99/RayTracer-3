@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 15:33:41
  * Last edited:
- *   28/04/2021, 15:10:04
+ *   28/04/2021, 20:26:00
  * Auto updated?
  *   Yes
  *
@@ -119,8 +119,8 @@ DescriptorSetLayout::~DescriptorSetLayout() {
 
 
 
-/* Adds a binding to the DescriptorSetLayout; i.e., one type of resource that a single descriptorset will bind. */
-void DescriptorSetLayout::add_binding(VkDescriptorType vk_descriptor_type, uint32_t n_descriptors, VkShaderStageFlags vk_shader_stage) {
+/* Adds a binding to the DescriptorSetLayout; i.e., one type of resource that a single descriptorset will bind. Returns the binding index of this binding. */
+uint32_t DescriptorSetLayout::add_binding(VkDescriptorType vk_descriptor_type, uint32_t n_descriptors, VkShaderStageFlags vk_shader_stage) {
     DENTER("Compute::DescriptorSetLayout::add_binding");
 
     // If the layout has already been created, then crash
@@ -128,15 +128,18 @@ void DescriptorSetLayout::add_binding(VkDescriptorType vk_descriptor_type, uint3
         DLOG(fatal, "Cannot add binding to DescriptorSetLayout after finalize() has been called.");
     }
 
+    // Get the binding index for this binding
+    uint32_t bind_index = static_cast<uint32_t>(this->vk_bindings.size());
+
     // We populate the struct
     VkDescriptorSetLayoutBinding binding;
-    populate_descriptor_set_binding(binding, this->vk_bindings.size(), vk_descriptor_type, n_descriptors, vk_shader_stage);
+    populate_descriptor_set_binding(binding, bind_index, vk_descriptor_type, n_descriptors, vk_shader_stage);
 
     // Add it to the internal list
     this->vk_bindings.push_back(binding);
 
-    // Done
-    DRETURN;
+    // Done, return the binding index
+    DRETURN bind_index;
 }
 
 /* Finalizes the descriptor layout. Note that no more bindings can be added after this point. */

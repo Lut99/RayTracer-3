@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 14:44:28
  * Last edited:
- *   28/04/2021, 16:08:07
+ *   28/04/2021, 21:21:00
  * Auto updated?
  *   Yes
  *
@@ -47,7 +47,7 @@ namespace RayTracer::Compute {
         ~Pipeline();
 
         /* Schedules the compute pipeline in the given CommandBuffer. Note that we assume the command buffer has already been started. */
-        void bind(const CommandBuffer& buffer);
+        void bind(const CommandBuffer& buffer) const;
 
         /* Explicitly returns the layout of the pipeline. */
         inline VkPipelineLayout layout() const { return this->vk_compute_pipeline_layout; }
