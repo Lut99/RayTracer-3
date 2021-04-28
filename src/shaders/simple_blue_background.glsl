@@ -6,15 +6,28 @@
 
 #version 450
 
-// Define the block size
+// Define the block size(s)
 layout (local_size_x = 32, local_size_y = 32) in;
 
-// // Define specialization constants; in this case, the frame size
+
+
+/* Define specialization constants. */
+// The width of the target frame
 layout (constant_id = 0) const int width = 0;
+
+// The height of the target frame
 layout (constant_id = 1) const int height = 0;
 
-// Define the buffers; in this case, we only have the output frame
-layout(set = 0, binding = 0) buffer Frame {
+
+
+/* Define the buffers. */
+// The input data for the camera
+layout(set = 0, binding = 0) uniform Camera {
+
+} camera;
+
+// The output frame to which we render
+layout(set = 0, binding = 1) buffer Frame {
     vec4 pixels[];
 } frame;
 
