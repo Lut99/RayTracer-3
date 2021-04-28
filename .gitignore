@@ -37,3 +37,7 @@ build/*
 
 # Do not copy vscode stuff
 .vscode/*
+
+# Do not copy output files
+*.png
+*.ppm
