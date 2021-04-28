@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   27/04/2021, 18:31:40
+ *   28/04/2021, 14:19:23
  * Auto updated?
  *   Yes
  *
@@ -172,8 +172,8 @@ void Buffer::copyto(const GPU& gpu, CommandBuffer& command_buffer, Buffer& desti
 
     // We schedule the copy by populating a struct
     VkBufferCopy copy_region{};
-    copy_region.srcOffset = this->vk_memory_offset;
-    copy_region.dstOffset = destination.vk_memory_offset;
+    copy_region.srcOffset = 0;
+    copy_region.dstOffset = 0;
     copy_region.size = this->vk_memory_size;
     vkCmdCopyBuffer(command_buffer, this->vk_buffer, destination.vk_buffer, 1, &copy_region);
 

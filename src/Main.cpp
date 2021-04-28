@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   27/04/2021, 18:28:51
+ *   28/04/2021, 14:22:01
  * Auto updated?
  *   Yes
  *
@@ -141,7 +141,7 @@ int main() {
 
         // With the queue idle for sure, copy the result buffer back to the staging buffer
         DLOG(info, "Copying back to staging buffer...");
-        copyfrom.copyto(gpu, cb_copy, staging);
+        copyto.copyto(gpu, cb_copy, staging);
 
         // Map the staging buffer so we can check
         DLOG(info, "Mapping staging buffer...");
@@ -151,6 +151,17 @@ int main() {
         for (uint32_t i = 0; i < 1024; i++) {
             if (i > 0 && i % 32 == 0) {
                 printf("\n");
+            } else if (i > 0) {
+                printf(" ");
+            }
+            if (i < 1000) {
+                printf(" ");
+            }
+            if (i < 100) {
+                printf(" ");
+            }
+            if (i < 10) {
+                printf(" ");
             }
             printf("%u", i);
         }
