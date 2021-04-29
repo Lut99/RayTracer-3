@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   28/04/2021, 21:41:38
+ *   29/04/2021, 15:42:48
  * Auto updated?
  *   Yes
  *
@@ -105,7 +105,7 @@ int main() {
         DLOG(auxillary, "");
         
         // Render single frame with the chosen camera
-        camera.render(compute_cpool, compute_pipeline, gpu.compute_queue(), descriptors);
+        camera.render(transfer_mpool, compute_cpool, compute_pipeline, gpu.compute_queue(), descriptors);
         const Frame& result = camera.get_frame(transfer_mpool);
 
 
@@ -113,6 +113,7 @@ int main() {
         // With the queue idle for sure, copy the result buffer back to the staging buffer
         DLOG(info, "Saving frame...");
         result.to_png("result.png");
+        result.to_ppm("result.ppm");
 
 
 

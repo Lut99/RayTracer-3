@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:35
  * Last edited:
- *   28/04/2021, 15:06:54
+ *   29/04/2021, 15:31:53
  * Auto updated?
  *   Yes
  *
@@ -43,11 +43,13 @@ namespace RayTracer::Compute {
         VkDeviceSize vk_memory_offset;
         /* The size of the internal buffer. */
         VkDeviceSize vk_memory_size;
+        /* The actual size of the internal buffer, as reported by memory_requirements.size. */
+        VkDeviceSize vk_req_memory_size;
         /* The properties of the memory for this buffer. */
         VkMemoryPropertyFlags vk_memory_properties;
 
         /* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
-        Buffer(VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkMemoryPropertyFlags memory_properties);
+        Buffer(VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties);
         
         /* Mark the MemoryPool as friend. */
         friend class MemoryPool;
@@ -92,6 +94,8 @@ namespace RayTracer::Compute {
             VkDeviceSize start;
             /* Length of the free block, in bytes. */
             VkDeviceSize length;
+            /* The actual size of the block, as reported by memsize.size. */
+            VkDeviceSize req_length;
 
             /* The actual VkBuffer object that is bound to this memory location. */
             VkBuffer vk_buffer;
@@ -127,7 +131,7 @@ namespace RayTracer::Compute {
 
 
         /* Private helper function that takes a UsedBlock, and uses it to initialize the given buffer. */
-        inline static Buffer init_buffer(const UsedBlock& used_block, VkDeviceMemory vk_memory, VkMemoryPropertyFlags memory_properties) { return Buffer(used_block.vk_buffer, used_block.vk_usage_flags, vk_memory, used_block.start, used_block.length, memory_properties); }
+        inline static Buffer init_buffer(const UsedBlock& used_block, VkDeviceMemory vk_memory, VkMemoryPropertyFlags memory_properties) { return Buffer(used_block.vk_buffer, used_block.vk_usage_flags, vk_memory, used_block.start, used_block.length, used_block.req_length, memory_properties); }
 
     public:
         /* The null handle for the pool. */

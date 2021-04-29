@@ -4,7 +4,7 @@
  * Created:
  *   28/04/2021, 20:08:29
  * Last edited:
- *   28/04/2021, 21:32:47
+ *   29/04/2021, 15:40:03
  * Auto updated?
  *   Yes
  *
@@ -28,13 +28,13 @@ namespace RayTracer {
     /* The CameraData struct, which describes what is send to the GPU and how. */
     struct CameraData {
         /* Vector placing the origin (middle) of the camera viewport in the world. */
-        glm::vec3 origin;
+        glm::vec4 origin;
         /* Vector determining the horizontal line of the camera viewport in the game world, and also its conceptual size. */
-        glm::vec3 horizontal;
+        glm::vec4 horizontal;
         /* Vector determining the vertical line of the camera viewport in the game world, and also its conceptual size. */
-        glm::vec3 vertical;
+        glm::vec4 vertical;
         /* Vector describing the lower left corner of the viewport. Shortcut based on the other three. */
-        glm::vec3 lower_left_corner;
+        glm::vec4 lower_left_corner;
     };
 
 
@@ -81,7 +81,7 @@ namespace RayTracer {
         void set_bindings(Compute::DescriptorSet& descriptor_set) const;
 
         /* Renders a single frame for the camera, using the given World object. To retrieve the frame, call get_frame() when the queue is guaranteed to be idle. */
-        void render(Compute::CommandPool& cpool, const Compute::Pipeline& pipeline, VkQueue vk_compute_queue, Compute::DescriptorSet& descriptor_set /* TBD */, bool wait_queue_idle = true);
+        void render(Compute::MemoryPool& mpool, Compute::CommandPool& cpool, const Compute::Pipeline& pipeline, VkQueue vk_compute_queue, Compute::DescriptorSet& descriptor_set /* TBD */, bool wait_queue_idle = true);
         /* Returns the result of a render as a constant reference to the internal frame. Note that the queue where it was rendered should really be idle before you call this. */
         const Frame& get_frame(Compute::MemoryPool& staging_pool) const;
 

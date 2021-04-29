@@ -4,7 +4,7 @@
  * Created:
  *   28/04/2021, 20:08:23
  * Last edited:
- *   28/04/2021, 21:44:08
+ *   29/04/2021, 15:43:11
  * Auto updated?
  *   Yes
  *
@@ -128,10 +128,10 @@ void Camera::update(uint32_t width, uint32_t height, float focal_length, float v
     glm::vec3 lower_left_corner = origin - horizontal / glm::vec3(2.0) - vertical / glm::vec3(2.0) - glm::vec3(0.0, 0.0, focal_length);
 
     // Update them in the internal vector
-    this->cpu_buffer->origin = origin;
-    this->cpu_buffer->horizontal = horizontal;
-    this->cpu_buffer->vertical = vertical;
-    this->cpu_buffer->lower_left_corner = lower_left_corner;
+    this->cpu_buffer->origin = glm::vec4(origin, 0.0);
+    this->cpu_buffer->horizontal = glm::vec4(horizontal, 0.0);
+    this->cpu_buffer->vertical = glm::vec4(vertical, 0.0);
+    this->cpu_buffer->lower_left_corner = glm::vec4(lower_left_corner, 0.0);
 
     // Done
     DRETURN;
@@ -160,7 +160,7 @@ void Camera::set_layout(Compute::DescriptorSetLayout& descriptor_set_layout) {
 
 /* Writes buffers to the bindings set in set_layout. Will throw errors if no binding has been set first. */
 void Camera::set_bindings(Compute::DescriptorSet& descriptor_set) const {
-    DENTER("Camera::set_layout");
+    DENTER("Camera::set_bindings");
 
     // Make sure set_layout has been called first
     if (this->bind_index == numeric_limits<uint32_t>::max()) {
@@ -168,7 +168,7 @@ void Camera::set_bindings(Compute::DescriptorSet& descriptor_set) const {
     }
 
     // Set the camera buffer layout first
-    descriptor_set.set(this->gpu, this->bind_index, Tools::Array<Buffer>({ this->gpu_buffer }));
+    descriptor_set.set(this->gpu, this->bind_index, Tools::Array<Buffer>({ (*(this->pool))[this->gpu_buffer] }));
 
     // Do the frame as well
     this->frame->set_binding(descriptor_set);
@@ -180,16 +180,26 @@ void Camera::set_bindings(Compute::DescriptorSet& descriptor_set) const {
 
 
 /* Renders a single frame for the camera, using the given World object. To retrieve the frame, call get_frame() when the queue is guaranteed to be idle. */
-void Camera::render(Compute::CommandPool& cpool, const Compute::Pipeline& pipeline, VkQueue vk_compute_queue, Compute::DescriptorSet& descriptor_set /* TBD */, bool wait_queue_idle) {
+void Camera::render(Compute::MemoryPool& mpool, Compute::CommandPool& cpool, const Compute::Pipeline& pipeline, VkQueue vk_compute_queue, Compute::DescriptorSet& descriptor_set /* TBD */, bool wait_queue_idle) {
     DENTER("Camera::render");
 
     // First, update camera stuff; push the CPU buffer to the GPU
     DLOG(info, "Syncing camera with GPU...");
-    BufferHandle staging_buffer_h = this->pool->allocate(sizeof(CameraData), VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    Buffer staging_buffer = (*(this->pool))[staging_buffer_h];
+    BufferHandle staging_buffer_h = mpool.allocate(sizeof(CameraData), VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Buffer staging_buffer = mpool[staging_buffer_h];
+
+    // Map the staging buffer and copy the CPU buffer to it
+    void* mapped_memory;
+    staging_buffer.map(this->gpu, &mapped_memory);
+    memcpy(mapped_memory, this->cpu_buffer, sizeof(CameraData));
+    staging_buffer.flush(this->gpu);
+    staging_buffer.unmap(this->gpu);
 
     // Use the internal command buffer to schedule the copy
     staging_buffer.copyto(this->gpu, this->cmd_buffer, (*(this->pool))[this->gpu_buffer]);
+
+    // Once done, deallocate the staging buffer
+    mpool.deallocate(staging_buffer_h);
 
     // Next, also in the update camera corner, update the camera bindings
     this->set_bindings(descriptor_set);

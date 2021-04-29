@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   28/04/2021, 15:10:10
+ *   29/04/2021, 15:32:14
  * Auto updated?
  *   Yes
  *
@@ -86,12 +86,13 @@ void populate_memory_range(VkMappedMemoryRange& memory_range, VkDeviceMemory vk_
 
 /***** BUFFER CLASS *****/
 /* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
-Buffer::Buffer(VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkMemoryPropertyFlags memory_properties) :
+Buffer::Buffer(VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties) :
     vk_buffer(buffer),
     vk_usage_flags(vk_usage_flags),
     vk_memory(vk_memory),
     vk_memory_offset(memory_offset),
     vk_memory_size(memory_size),
+    vk_req_memory_size(req_memory_size),
     vk_memory_properties(memory_properties)
 {}
 
@@ -108,7 +109,7 @@ void  Buffer::map(const GPU& gpu, void** mapped_memory) const {
 
     // Now, we map the memory to a bit of host-side memory
     VkResult vk_result;
-    if ((vk_result = vkMapMemory(gpu, this->vk_memory, this->vk_memory_offset, this->vk_memory_size, 0, mapped_memory)) != VK_SUCCESS) {
+    if ((vk_result = vkMapMemory(gpu, this->vk_memory, this->vk_memory_offset, this->vk_req_memory_size, 0, mapped_memory)) != VK_SUCCESS) {
         DLOG(fatal, "Could not map buffer memory to CPU-memory: " + vk_error_map[vk_result]);
     }
 
@@ -127,7 +128,7 @@ void  Buffer::flush(const GPU& gpu) const {
 
     // Prepare the call to the flush function
     VkMappedMemoryRange memory_range;
-    populate_memory_range(memory_range, this->vk_memory, this->vk_memory_offset, this->vk_memory_size);
+    populate_memory_range(memory_range, this->vk_memory, this->vk_memory_offset, this->vk_req_memory_size);
 
     // Do the flush call
     VkResult vk_result;
@@ -387,6 +388,7 @@ BufferHandle MemoryPool::allocate(VkDeviceSize n_bytes, VkBufferUsageFlags usage
     // Store the chosen parameters in the buffer for easy re-creation
     block.start = offset;
     block.length = n_bytes;
+    block.req_length = mem_requirements.size;
     block.vk_usage_flags = usage_flags;
     block.vk_create_flags = create_flags;
     block.vk_sharing_mode = sharing_mode;
@@ -413,7 +415,7 @@ void MemoryPool::deallocate(BufferHandle buffer) {
 
     // Get the start & offset of the buffer
     VkDeviceSize buffer_start = block.start;
-    VkDeviceSize buffer_length = block.length;
+    VkDeviceSize buffer_length = block.req_length;
 
     // Generate a new free block for the memory released by this buffer. We insert it sorted.
     bool inserted = false;
