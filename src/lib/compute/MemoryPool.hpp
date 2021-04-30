@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:35
  * Last edited:
- *   29/04/2021, 15:31:53
+ *   30/04/2021, 14:48:01
  * Auto updated?
  *   Yes
  *
@@ -141,7 +141,7 @@ namespace RayTracer::Compute {
         /* Constructor for the MemoryPool class, which takes a device to allocate on, the type of memory we will allocate on and the total size of the allocated block. */
         MemoryPool(const GPU& gpu, uint32_t memory_type, VkDeviceSize n_bytes, VkMemoryPropertyFlags memory_properties = 0);
         /* Copy constructor for the MemoryPool class, which is deleted. */
-        MemoryPool(const MemoryPool& other) = delete;
+        MemoryPool(const MemoryPool& other);
         /* Move constructor for the MemoryPool class. */
         MemoryPool(MemoryPool&& other);
         /* Destructor for the MemoryPool class. */
@@ -160,10 +160,10 @@ namespace RayTracer::Compute {
         /* Defragements the entire pool, aligning all buffers next to each other in memory to create a maximally sized free block. Note that existing handles will remain valid. */
         void defrag();
 
-        /* Copy constructor for the MemoryPool class, which is deleted. */
-        MemoryPool& operator=(const MemoryPool& other) = delete;
-        /* Move constructor for the MemoryPool class. */
-        MemoryPool& operator=(MemoryPool&& other);
+        /* Copy assignment operator for the MemoryPool class. */
+        inline MemoryPool& operator=(const MemoryPool& other) { return *this = MemoryPool(other); }
+        /* Move assignment operator for the MemoryPool class. */
+        inline MemoryPool& operator=(MemoryPool&& other) { if (this != &other) { swap(*this, other); } return *this; }
         /* Swap operator for the MemoryPool class. */
         friend void swap(MemoryPool& mp1, MemoryPool& mp2);
 

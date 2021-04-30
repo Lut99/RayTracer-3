@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:54
  * Last edited:
- *   28/04/2021, 15:07:50
+ *   30/04/2021, 14:32:21
  * Auto updated?
  *   Yes
  *
@@ -19,9 +19,18 @@
 
 #include <vulkan/vulkan.h>
 
+#include "Instance.hpp"
+
 #include "tools/Array.hpp"
 
 namespace RayTracer::Compute {
+    /* The Vulkan device extensions we want to be enabled. */
+    static const Tools::Array<const char*> device_extensions({
+        // Nothing lmao
+    });
+
+
+
     /* The DeviceQueueInfo class, which describes the queues that a GPU supports. */
     class DeviceQueueInfo {
     private:
@@ -58,17 +67,11 @@ namespace RayTracer::Compute {
 
     };
 
+
+
     /* The GPU class, which is the main interface to our Vulkan compute library implementation. */
     class GPU {
     private:
-        /* The VkInstance that we use, among other things. */
-        VkInstance vk_instance;
-
-        /* The debug messenger of Vulkan. */
-        VkDebugUtilsMessengerEXT vk_debugger;
-        /* The function needed to destroy the Vulkan debug messenger. */
-        PFN_vkDestroyDebugUtilsMessengerEXT vk_destroy_debug_utils_messenger_method;
-
         /* The physical GPU this class references. */
         VkPhysicalDevice vk_physical_device;
         /* The properties of said device, like its name. */
@@ -84,10 +87,10 @@ namespace RayTracer::Compute {
         VkQueue vk_memory_queue;
 
     public:
-        /* Constructor for the GPU class, which takes a list of required extensions to enable on the GPU and optionally a list of validation layers to add. */
-        GPU(const Tools::Array<const char*>& instance_extensions = Tools::Array<const char*>(), const Tools::Array<const char*>& device_extensions = Tools::Array<const char*>(), const Tools::Array<const char*>& required_layers = Tools::Array<const char*>());
-        /* Copy constructor for the GPU class. However, this is deleted, as it makes no sense to copy a GPU. */
-        GPU(const GPU& other) = delete;
+        /* Constructor for the GPU class, which takes a list of required extensions to enable on the GPU. */
+        GPU(const Tools::Array<const char*>& extensions = device_extensions);
+        /* Copy constructor for the GPU class. */
+        GPU(const GPU& other);
         /* Move constructor for the GPU class. */
         GPU(GPU&& other);
         /* Destructor for the GPU class. */
@@ -98,20 +101,15 @@ namespace RayTracer::Compute {
         /* Allows the GPU to be (negated) compared with another GPU class. */
         inline bool operator!=(const GPU& other) const { return this->vk_device != other.vk_device; }
 
-        /* Explicitly provides (read-only) access to the internal vk_instance object. */
-        inline VkInstance instance() const { return this->vk_instance; }
-        /* Implicitly provides (read-only) access to the internal vk_instance object. */
-        inline operator VkInstance() const { return this->vk_instance; }
-
         /* Returns the name of the chosen GPU. */
         inline std::string name() const { return std::string(this->vk_physical_device_properties.deviceName); }
         /* Returns the queue information of the chosen GPU. */
         inline DeviceQueueInfo queue_info() const { return this->vk_physical_device_queue_info; }
+        
         /* Explicitly provides (read-only) access to the internal vk_physical_device object. */
         inline VkPhysicalDevice physical_device() const { return this->vk_physical_device; }
         /* Implicitly provides (read-only) access to the internal vk_physical_device object. */
         inline operator VkPhysicalDevice() const { return this->vk_physical_device; }
-
         /* Explicitly provides (read-only) access to the internal vk_device object. */
         inline VkDevice device() const { return this->vk_device; }
         /* Implicitly provides (read-only) access to the internal vk_device object. */
@@ -122,10 +120,10 @@ namespace RayTracer::Compute {
         /* Explicitly provides (read-only) access to the internal vk_memory_queue object. */
         inline VkQueue memory_queue() const { return this->vk_memory_queue; }
 
-        /* Copy assignment operator for the GPU class, which is also deleted. */
-        GPU& operator=(const GPU& other) = delete;
+        /* Copy assignment operator for the GPU class. */
+        inline GPU& operator=(const GPU& other) { return *this = GPU(other); }
         /* Move assignment operator for the GPU class. */
-        GPU& operator=(GPU&& other);
+        inline GPU& operator=(GPU&& other) { if (this != &other) { swap(*this, other); } return *this; }
         /* Swap operator for the GPU class. */
         friend void swap(GPU& g1, GPU& g2);
   

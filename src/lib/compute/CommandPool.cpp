@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 13:03:50
  * Last edited:
- *   28/04/2021, 21:26:35
+ *   30/04/2021, 15:05:05
  * Auto updated?
  *   Yes
  *
@@ -181,7 +181,8 @@ VkSubmitInfo CommandBuffer::get_submit_info() const {
 /* Constructor for the CommandPool class, which takes the GPU to allocate for, the queue index for which this pool allocates buffers and optionally create flags for the pool. */
 CommandPool::CommandPool(const GPU& gpu, uint32_t queue_index, VkCommandPoolCreateFlags create_flags) :
     gpu(gpu),
-    vk_queue_index(queue_index)
+    vk_queue_index(queue_index),
+    vk_create_flags(create_flags)
 {
     DENTER("Compute::CommandPool::CommandPool");
     DLOG(info, "Initializing CommandPool for queue " + std::to_string(this->vk_queue_index) + "...");
@@ -197,6 +198,27 @@ CommandPool::CommandPool(const GPU& gpu, uint32_t queue_index, VkCommandPoolCrea
     }
 
     // Done
+    DLEAVE;
+}
+
+/* Copy constructor for the CommandPool class. */
+CommandPool::CommandPool(const CommandPool& other) :
+    gpu(other.gpu),
+    vk_queue_index(other.vk_queue_index),
+    vk_create_flags(other.vk_create_flags)
+{
+    DENTER("Compute::CommandPool::CommandPool(copy)");
+
+    // Start by populating the create info
+    VkCommandPoolCreateInfo command_pool_info;
+    populate_command_pool_info(command_pool_info, this->vk_queue_index, this->vk_create_flags);
+
+    // Call the create
+    VkResult vk_result;
+    if ((vk_result = vkCreateCommandPool(this->gpu, &command_pool_info, nullptr, &this->vk_command_pool)) != VK_SUCCESS) {
+        DLOG(fatal, "Could not create CommandPool: " + vk_error_map[vk_result]);
+    }
+
     DLEAVE;
 }
 
@@ -352,12 +374,6 @@ void CommandPool::deallocate(CommandBufferHandle buffer) {
 
 
 
-/* Move assignment operator for the CommandPool class. */
-CommandPool& CommandPool::operator=(CommandPool&& other) {
-    if (this != &other) { swap(*this, other); }
-    return *this;
-}
-
 /* Swap operator for the CommandPool class. */
 void Compute::swap(CommandPool& cp1, CommandPool& cp2) {
     DENTER("Compute::swap(CommandPool)");
@@ -373,6 +389,7 @@ void Compute::swap(CommandPool& cp1, CommandPool& cp2) {
 
     swap(cp1.vk_command_pool, cp2.vk_command_pool);
     swap(cp1.vk_queue_index, cp2.vk_queue_index);
+    swap(cp1.vk_create_flags, cp2.vk_create_flags);
     swap(cp1.vk_command_buffers, cp2.vk_command_buffers);
 
     DRETURN;

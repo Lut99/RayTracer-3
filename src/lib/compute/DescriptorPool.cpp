@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:38:48
  * Last edited:
- *   29/04/2021, 14:34:16
+ *   30/04/2021, 15:00:53
  * Auto updated?
  *   Yes
  *
@@ -184,7 +184,10 @@ void DescriptorSet::bind(const CommandBuffer& buffer, VkPipelineLayout pipeline_
 /* Constructor for the DescriptorPool class, which takes the GPU to create the pool on, the number of descriptors we want to allocate in the pool, the maximum number of descriptor sets that can be allocated and optionally custom create flags. */
 DescriptorPool::DescriptorPool(const GPU& gpu, VkDescriptorType descriptor_type, uint32_t n_descriptors, uint32_t max_sets, VkDescriptorPoolCreateFlags flags):
     gpu(gpu),
-    max_size(max_sets),
+    vk_descriptor_type(descriptor_type),
+    vk_max_sets(max_sets),
+    vk_max_descriptors(n_descriptors),
+    vk_create_flags(flags),
     vk_descriptor_sets(max_sets)
 {
     DENTER("Compute::DescriptorPool::DescriptorPool");
@@ -196,11 +199,11 @@ DescriptorPool::DescriptorPool(const GPU& gpu, VkDescriptorType descriptor_type,
     // First, we define how large the pool will be
     DLOG(info, "Preparing structs...");
     VkDescriptorPoolSize descriptor_pool_size;
-    populate_descriptor_pool_size(descriptor_pool_size, descriptor_type, n_descriptors);
+    populate_descriptor_pool_size(descriptor_pool_size, this->vk_descriptor_type, this->vk_max_descriptors);
 
     // Prepare the create info
     VkDescriptorPoolCreateInfo descriptor_pool_info;
-    populate_descriptor_pool_info(descriptor_pool_info, descriptor_pool_size, max_sets, flags);
+    populate_descriptor_pool_info(descriptor_pool_info, descriptor_pool_size, this->vk_max_sets, this->vk_create_flags);
 
 
 
@@ -217,11 +220,44 @@ DescriptorPool::DescriptorPool(const GPU& gpu, VkDescriptorType descriptor_type,
     DLEAVE;
 }
 
+/* Copy constructor for the DescriptorPool. */
+DescriptorPool::DescriptorPool(const DescriptorPool& other) :
+    gpu(other.gpu),
+    vk_descriptor_type(other.vk_descriptor_type),
+    vk_max_sets(other.vk_max_sets),
+    vk_max_descriptors(other.vk_max_descriptors),
+    vk_create_flags(other.vk_create_flags),
+    vk_descriptor_sets(other.vk_max_sets)
+{
+    DENTER("Compute::DescriptorPool::DescriptorPool(copy)");
+
+    // First, we define how large the pool will be
+    VkDescriptorPoolSize descriptor_pool_size;
+    populate_descriptor_pool_size(descriptor_pool_size, this->vk_descriptor_type, this->vk_max_descriptors);
+
+    // Prepare the create info
+    VkDescriptorPoolCreateInfo descriptor_pool_info;
+    populate_descriptor_pool_info(descriptor_pool_info, descriptor_pool_size, this->vk_max_sets, this->vk_create_flags);
+
+    // Actually allocate the pool
+    VkResult vk_result;
+    if ((vk_result = vkCreateDescriptorPool(this->gpu, &descriptor_pool_info, nullptr, &this->vk_descriptor_pool)) != VK_SUCCESS) {
+        DLOG(fatal, "Could not allocate descriptor pool: " + vk_error_map[vk_result]);
+    }
+
+    // Do not copy individual descriptors
+
+    DLEAVE;
+}
+        
 /* Move constructor for the DescriptorPool. */
 DescriptorPool::DescriptorPool(DescriptorPool&& other):
     gpu(other.gpu),
     vk_descriptor_pool(other.vk_descriptor_pool),
-    max_size(other.max_size),
+    vk_descriptor_type(other.vk_descriptor_type),
+    vk_max_sets(other.vk_max_sets),
+    vk_max_descriptors(other.vk_max_descriptors),
+    vk_create_flags(other.vk_create_flags),
     vk_descriptor_sets(other.vk_descriptor_sets)
 {
     // Set the other's pool & sets to nullptr to avoid deallocation
@@ -259,8 +295,8 @@ DescriptorSet DescriptorPool::allocate(const DescriptorSetLayout& descriptor_set
     DENTER("Compute::DescriptorPool::allocate");
 
     // Check if we have enough space left
-    if (static_cast<uint32_t>(this->vk_descriptor_sets.size()) >= this->max_size) {
-        DLOG(fatal, "Cannot allocate new DescriptorSet: already allocated maximum of " + std::to_string(this->max_size) + " sets.");
+    if (static_cast<uint32_t>(this->vk_descriptor_sets.size()) >= this->vk_max_sets) {
+        DLOG(fatal, "Cannot allocate new DescriptorSet: already allocated maximum of " + std::to_string(this->vk_max_sets) + " sets.");
     }
     
     // Put the layout in a struct s.t. we can pass it and keep it in memory until after the call
@@ -298,8 +334,8 @@ Tools::Array<DescriptorSet> DescriptorPool::nallocate(uint32_t n_sets, const Too
     #endif
 
     // Check if we have enough space left
-    if (static_cast<uint32_t>(this->vk_descriptor_sets.size()) + n_sets > this->max_size) {
-        DLOG(fatal, "Cannot allocate " + std::to_string(n_sets) + " new DescriptorSets: only space for " + std::to_string(this->max_size - static_cast<uint32_t>(this->vk_descriptor_sets.size())) + " sets");
+    if (static_cast<uint32_t>(this->vk_descriptor_sets.size()) + n_sets > this->vk_max_sets) {
+        DLOG(fatal, "Cannot allocate " + std::to_string(n_sets) + " new DescriptorSets: only space for " + std::to_string(this->vk_max_sets - static_cast<uint32_t>(this->vk_descriptor_sets.size())) + " sets");
     }
 
     // If we do, prepare a set of n times the same descriptor set layout
@@ -330,12 +366,6 @@ Tools::Array<DescriptorSet> DescriptorPool::nallocate(uint32_t n_sets, const Too
 
 
 
-/* Move assignment operator for the DescriptorPool class. */
-DescriptorPool& DescriptorPool::operator=(DescriptorPool&& other) {
-    if (this != &other) { swap(*this, other); }
-    return *this;
-}
-
 /* Swap operator for the DescriptorPool class. */
 void Compute::swap(DescriptorPool& dp1, DescriptorPool& dp2) {
     DENTER("Compute::swap(DescriptorPool)");
@@ -351,7 +381,10 @@ void Compute::swap(DescriptorPool& dp1, DescriptorPool& dp2) {
 
     // Swap all fields
     swap(dp1.vk_descriptor_pool, dp2.vk_descriptor_pool);
-    swap(dp1.max_size, dp2.max_size);
+    swap(dp1.vk_descriptor_type, dp2.vk_descriptor_type);
+    swap(dp1.vk_max_sets, dp2.vk_max_sets);
+    swap(dp1.vk_max_descriptors, dp2.vk_max_descriptors);
+    swap(dp1.vk_create_flags, dp2.vk_create_flags);
     swap(dp1.vk_descriptor_sets, dp2.vk_descriptor_sets);
 
     // Done

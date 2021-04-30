@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   29/04/2021, 15:42:48
+ *   30/04/2021, 13:56:59
  * Auto updated?
  *   Yes
  *
@@ -29,22 +29,6 @@ using namespace std;
 using namespace RayTracer;
 using namespace RayTracer::Compute;
 using namespace CppDebugger::SeverityValues;
-
-
-/***** CONSTANTS *****/
-/* The Vulkan instance extensions we want to be enabled. */
-static const Tools::Array<const char*> instance_extensions({
-    VK_EXT_DEBUG_UTILS_EXTENSION_NAME
-});
-/* The Vulkan device extensions we want to be enabled. */
-static const Tools::Array<const char*> device_extensions({
-    // Nothing lmao
-});
-/* The Vulkan validation layers we want to be enabled. */
-static const Tools::Array<const char*> required_layers({
-    "VK_LAYER_KHRONOS_validation" 
-});
-
 
 
 /***** ENTRY POINT *****/

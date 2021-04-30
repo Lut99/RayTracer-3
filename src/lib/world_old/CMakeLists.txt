@@ -1,5 +1,5 @@
 # Specify the libraries in this directory
-add_library(World STATIC ${CMAKE_CURRENT_SOURCE_DIR}/Sphere.cpp)
+add_library(World STATIC ${CMAKE_CURRENT_SOURCE_DIR}/World.cpp ${CMAKE_CURRENT_SOURCE_DIR}/RenderObject.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Sphere.cpp)
 
 # Set the dependencies for this library:
 target_include_directories(World PUBLIC

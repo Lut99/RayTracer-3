@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   29/04/2021, 15:32:14
+ *   30/04/2021, 14:51:25
  * Auto updated?
  *   Yes
  *
@@ -237,6 +237,31 @@ MemoryPool::MemoryPool(const GPU& gpu, uint32_t memory_type, VkDeviceSize n_byte
 
 
     DDEDENT;
+    DLEAVE;
+}
+
+/* Copy constructor for the MemoryPool class, which is deleted. */
+MemoryPool::MemoryPool(const MemoryPool& other) :
+    gpu(other.gpu),
+    vk_memory_type(other.vk_memory_type),
+    vk_memory_size(other.vk_memory_size),
+    vk_memory_properties(other.vk_memory_properties),
+    vk_free_blocks({ MemoryPool::FreeBlock({ 0, this->vk_memory_size }) })
+{
+    DENTER("MemoryPool::MemoryPool(copy)");
+
+    // Allocate a new block of memory that we shall use, with the proper size
+    VkMemoryAllocateInfo allocate_info;
+    populate_allocate_info(allocate_info, this->vk_memory_type, this->vk_memory_size);
+
+    // Do the allocation
+    VkResult vk_result;
+    if ((vk_result = vkAllocateMemory(this->gpu, &allocate_info, nullptr, &this->vk_memory)) != VK_SUCCESS) {
+        DLOG(fatal, "Could not allocate memory on device: " + vk_error_map[vk_result]);
+    }
+
+    // Do not copy handles with us, as that doesn't really make a whole lotta sense
+
     DLEAVE;
 }
 
@@ -580,12 +605,6 @@ void MemoryPool::defrag() {
 }
 
 
-
-/* Move constructor for the MemoryPool class. */
-MemoryPool& MemoryPool::operator=(MemoryPool&& other) {
-    if (this != &other) { swap(*this, other); }
-    return *this;
-}
 
 /* Swap operator for the MemoryPool class. */
 void Compute::swap(MemoryPool& mp1, MemoryPool& mp2) {

@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:39:16
  * Last edited:
- *   28/04/2021, 21:21:35
+ *   30/04/2021, 15:00:15
  * Auto updated?
  *   Yes
  *
@@ -63,8 +63,14 @@ namespace RayTracer::Compute {
     private:
         /* The internal pool used for allocating new pools. */
         VkDescriptorPool vk_descriptor_pool;
+        /* Type of descriptors that can be allocated here. */
+        VkDescriptorType vk_descriptor_type;
         /* The maximum number of sets allowed in this pool. */
-        uint32_t max_size;
+        uint32_t vk_max_sets;
+        /* The maximum number of descriptors allowed per set in this pool. */
+        uint32_t vk_max_descriptors;
+        /* The create flags used to initialize this pool. */
+        VkDescriptorPoolCreateFlags vk_create_flags;
 
         /* Internal list of Descriptors. */
         Tools::Array<VkDescriptorSet> vk_descriptor_sets;
@@ -72,7 +78,7 @@ namespace RayTracer::Compute {
     public:
         /* Constructor for the DescriptorPool class, which takes the GPU to create the pool on, the number of descriptors we want to allocate in the pool, the maximum number of descriptor sets that can be allocated and optionally custom create flags. */
         DescriptorPool(const GPU& gpu, VkDescriptorType descriptor_type, uint32_t n_descriptors, uint32_t max_sets, VkDescriptorPoolCreateFlags flags = 0);
-        /* Copy constructor for the DescriptorPool, which is deleted. */
+        /* Copy constructor for the DescriptorPool. */
         DescriptorPool(const DescriptorPool& other);
         /* Move constructor for the DescriptorPool. */
         DescriptorPool(DescriptorPool&& other);
@@ -87,17 +93,17 @@ namespace RayTracer::Compute {
         /* Returns the current number of sets allocated in this pool. */
         inline size_t size() const { return this->vk_descriptor_sets.size(); }
         /* Returns the maximum number of sets we can allocate in this pool. */
-        inline size_t capacity() const { return static_cast<size_t>(this->max_size); }
+        inline size_t capacity() const { return static_cast<size_t>(this->vk_max_sets); }
 
         /* Explicitly returns the internal VkDescriptorPool object. */
         inline VkDescriptorPool descriptor_pool() const { return this->vk_descriptor_pool; }
         /* Implicitly returns the internal VkDescriptorPool object. */
         inline operator VkDescriptorPool() const { return this->vk_descriptor_pool; }
 
-        /* Copy assignment operator for the DescriptorPool class, which is deleted. */
-        DescriptorPool& operator=(const DescriptorPool& other) = delete;
+        /* Copy assignment operator for the DescriptorPool class. */
+        inline DescriptorPool& operator=(const DescriptorPool& other) { *this = DescriptorPool(other); }
         /* Move assignment operator for the DescriptorPool class. */
-        DescriptorPool& operator=(DescriptorPool&& other);
+        inline DescriptorPool& operator=(DescriptorPool&& other) { if (this != &other) { swap(*this, other); } return *this; }
         /* Swap operator for the DescriptorPool class. */
         friend void swap(DescriptorPool& dp1, DescriptorPool& dp2);
 

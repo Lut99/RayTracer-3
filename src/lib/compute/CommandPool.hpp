@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 13:03:55
  * Last edited:
- *   28/04/2021, 21:25:33
+ *   30/04/2021, 15:04:17
  * Auto updated?
  *   Yes
  *
@@ -67,6 +67,8 @@ namespace RayTracer::Compute {
         VkCommandPool vk_command_pool;
         /* The device queue index of this pool. */
         uint32_t vk_queue_index;
+        /* The create flags used to allocate the pool. */
+        VkCommandPoolCreateFlags vk_create_flags;
 
         /* Map of the CommandBuffers allocated with this pool. */
         std::unordered_map<CommandBufferHandle, VkCommandBuffer> vk_command_buffers;
@@ -74,8 +76,8 @@ namespace RayTracer::Compute {
     public:
         /* Constructor for the CommandPool class, which takes the GPU to allocate for, the queue index for which this pool allocates buffers and optionally create flags for the pool. */
         CommandPool(const GPU& gpu, uint32_t queue_index, VkCommandPoolCreateFlags create_flags = 0);
-        /* Copy constructor for the CommandPool class, which is deleted. */
-        CommandPool(const CommandPool& other) = delete;
+        /* Copy constructor for the CommandPool class. */
+        CommandPool(const CommandPool& other);
         /* Move constructor for the CommandPool class. */
         CommandPool(CommandPool&& other);
         /* Destructor for the CommandPool class. */
@@ -99,9 +101,9 @@ namespace RayTracer::Compute {
         inline operator VkCommandPool() const { return this->vk_command_pool; }
 
         /* Copy assignment operator for the CommandPool class, which is deleted. */
-        CommandPool& operator=(const CommandPool& other) = delete;
+        inline CommandPool& operator=(const CommandPool& other) { return *this = CommandPool(other); }
         /* Move assignment operator for the CommandPool class. */
-        CommandPool& operator=(CommandPool&& other);
+        inline CommandPool& operator=(CommandPool&& other) { if (this != &other) { swap(*this, other); } return *this; }
         /* Swap operator for the CommandPool class. */
         friend void swap(CommandPool& cp1, CommandPool& cp2);
 
