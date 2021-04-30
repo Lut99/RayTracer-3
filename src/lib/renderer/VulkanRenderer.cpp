@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   30/04/2021, 15:21:44
+ *   30/04/2021, 16:52:06
  * Auto updated?
  *   Yes
  *
@@ -143,7 +143,33 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity>& entities) 
     // Next, loop through all entities to render them
     for (size_t i = 0; i < entities.size(); i++) {
         // Select the proper pre-render mode
-        if (this->)
+        if (entities[i].pre_render_mode & EntityPreRenderModeFlags::gpu) {
+            // Determine the type of pre-rendering operation we need to do
+            switch (entities[i].pre_render_operation) {
+                case EntityPreRenderOperation::generate_sphere:
+                    /* Prepare the pipeline using this shader. */
+                    break;
+
+                default:
+                    DLOG(fatal, "Entity " + std::to_string(i) + " wants to be pre-rendered on the CPU using unsupported operation '" + entity_pre_render_operation_names[entities[i].pre_render_operation] + "'.");
+
+            }
+
+        } else if (entities[i].pre_render_mode & EntityPreRenderModeFlags::cpu) {
+            // Determine the type of pre-rendering operation we need to do
+            switch (entities[i].pre_render_operation) {
+                case EntityPreRenderOperation::generate_sphere:
+                    /* Call the generate sphere CPU function. */
+                    break;
+
+                default:
+                    DLOG(fatal, "Entity " + std::to_string(i) + " wants to be pre-rendered on the GPU using unsupported operation '" + entity_pre_render_operation_names[entities[i].pre_render_operation] + "'.");
+
+            }
+
+        } else {
+            DLOG(fatal, "Entity " + std::to_string(i) + " of type " + entity_type_names[entities[i].type] + " with the Vulkan compute shader back-end.");
+        }
     }
 
     DRETURN;

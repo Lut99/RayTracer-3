@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:08:59
  * Last edited:
- *   30/04/2021, 15:21:28
+ *   30/04/2021, 16:30:59
  * Auto updated?
  *   Yes
  *
@@ -17,18 +17,26 @@
 #ifndef ENTITIES_RENDER_ENTITY_HPP
 #define ENTITIES_RENDER_ENTITY_HPP
 
+#include <string>
+
 namespace RayTracer::ECS {
     /* List of all entities registered to the RayTracer. */
-    enum class EntityType {
+    enum EntityType {
+        /* A type indicating that it's not set yet. */
+        none = 0,
         /* Basic sphere shape. */
-        sphere,
-
-        /* Finally, a type indicated that it's not set yet. */
-        none
+        sphere = 1
+    };
+    /* Maps an entity type to a string name. */
+    static const std::string entity_type_names[] = {
+        "none",
+        "sphere"
     };
 
+
+
     /* The mode in which the entity needs to be pre-rendered. */
-    enum class EntityPreRenderModeFlags {
+    enum EntityPreRenderModeFlags {
         /* No render mode defined. */
         none = 0x0,
         /* Can be pre-rendered on the CPU. */
@@ -36,10 +44,19 @@ namespace RayTracer::ECS {
         /* Can be pre-rendered on the GPU. */  
         gpu = 0x2
     };
-    /* Allows the flags to be OR'ed. */
-    inline EntityPreRenderModeFlags operator|(const EntityPreRenderModeFlags& e1, const EntityPreRenderModeFlags& e2) { return (EntityPreRenderModeFlags) ((uint32_t) e1 | (uint32_t) e2); }
-    /* Allows the flags to be AND'ed. */
-    inline EntityPreRenderModeFlags operator&(const EntityPreRenderModeFlags& e1, const EntityPreRenderModeFlags& e2) { return (EntityPreRenderModeFlags) ((uint32_t) e1 & (uint32_t) e2); }
+
+    /* Describes the possible pre-rendering operations that the Renderer has to do for this entity. */
+    enum EntityPreRenderOperation {
+        /* No render operation defined. */
+        none = 0,
+        /* Generate a 3D sphere. */
+        generate_sphere = 1
+    };
+    /* Maps an entity pre render operation to a string name. */
+    static const std::string entity_pre_render_operation_names[] = {
+        "none",
+        "generate_sphere"
+    };
 
 
 
@@ -49,7 +66,9 @@ namespace RayTracer::ECS {
         EntityType type;
 
         /* How the entity needs to be pre-rendered. */
-        EntityPreRenderModeFlags render_mode;
+        EntityPreRenderModeFlags pre_render_mode;
+        /* The pre-rendering operation that needs to happen for this entity. */
+        EntityPreRenderOperation pre_render_operation;
     };
 }
 
