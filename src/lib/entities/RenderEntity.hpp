@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:08:59
  * Last edited:
- *   30/04/2021, 16:30:59
+ *   01/05/2021, 13:37:48
  * Auto updated?
  *   Yes
  *
@@ -24,12 +24,15 @@ namespace RayTracer::ECS {
     enum EntityType {
         /* A type indicating that it's not set yet. */
         none = 0,
+        /* Basic, 2D-triangle shape. */
+        triangle = 1,
         /* Basic sphere shape. */
-        sphere = 1
+        sphere = 2
     };
     /* Maps an entity type to a string name. */
     static const std::string entity_type_names[] = {
         "none",
+        "triangle",
         "sphere"
     };
 
@@ -49,12 +52,15 @@ namespace RayTracer::ECS {
     enum EntityPreRenderOperation {
         /* No render operation defined. */
         none = 0,
+        /* Generate a 2D triangle. */
+        generate_triangle = 1,
         /* Generate a 3D sphere. */
-        generate_sphere = 1
+        generate_sphere = 2
     };
     /* Maps an entity pre render operation to a string name. */
     static const std::string entity_pre_render_operation_names[] = {
         "none",
+        "generate_triangle",
         "generate_sphere"
     };
 
@@ -69,6 +75,7 @@ namespace RayTracer::ECS {
         EntityPreRenderModeFlags pre_render_mode;
         /* The pre-rendering operation that needs to happen for this entity. */
         EntityPreRenderOperation pre_render_operation;
+
     };
 }
 

@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   30/04/2021, 16:52:06
+ *   01/05/2021, 13:36:56
  * Auto updated?
  *   Yes
  *
@@ -146,9 +146,9 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity>& entities) 
         if (entities[i].pre_render_mode & EntityPreRenderModeFlags::gpu) {
             // Determine the type of pre-rendering operation we need to do
             switch (entities[i].pre_render_operation) {
-                case EntityPreRenderOperation::generate_sphere:
-                    /* Prepare the pipeline using this shader. */
-                    break;
+                // case EntityPreRenderOperation::generate_sphere:
+                //     /* Prepare the pipeline using this shader. */
+                //     break;
 
                 default:
                     DLOG(fatal, "Entity " + std::to_string(i) + " wants to be pre-rendered on the CPU using unsupported operation '" + entity_pre_render_operation_names[entities[i].pre_render_operation] + "'.");
