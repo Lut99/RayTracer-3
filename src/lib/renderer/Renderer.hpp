@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:21:29
  * Last edited:
- *   30/04/2021, 13:53:15
+ *   02/05/2021, 18:14:03
  * Auto updated?
  *   Yes
  *
@@ -43,7 +43,7 @@ namespace RayTracer {
         virtual ~Renderer();
 
         /* Uses the chosen backend to perform pre-rendering. The resulting list of vertices, indices, w/e is stored internally, ready to be used by render(). */
-        virtual void prerender(const Tools::Array<ECS::RenderEntity>& entities) = 0;
+        virtual void prerender(const Tools::Array<ECS::RenderEntity*>& entities) = 0;
         /* Uses the chosen backend to render the internal list of vertices, indices, w/e using the given Camera object. The resulting frame can then be retrieved from the Camera. */
         virtual void render(Camera& camera) const = 0;
 

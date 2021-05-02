@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:28
  * Last edited:
- *   02/05/2021, 17:35:00
+ *   02/05/2021, 18:12:39
  * Auto updated?
  *   Yes
  *
@@ -84,7 +84,7 @@ namespace RayTracer {
         virtual ~VulkanRenderer();
         
         /* Pre-renders the given list of RenderEntities, accelerated using Vulkan compute shaders. */
-        virtual void prerender(const Tools::Array<ECS::RenderEntity>& entities);
+        virtual void prerender(const Tools::Array<ECS::RenderEntity*>& entities);
         /* Renders the internal list of vertices to a frame using the given camera position. */
         virtual void render(Camera& camera) const;
 

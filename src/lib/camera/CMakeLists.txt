@@ -1,5 +1,5 @@
 # Specify the libraries in this directory
-add_library(Camera STATIC ${CMAKE_CURRENT_SOURCE_DIR}/Camera.cpp)
+add_library(Camera STATIC ${CMAKE_CURRENT_SOURCE_DIR}/Camera.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Frame.cpp ${CMAKE_CURRENT_SOURCE_DIR}/LodePNG.cpp)
 
 # Set the dependencies for this library:
 target_include_directories(Camera PUBLIC

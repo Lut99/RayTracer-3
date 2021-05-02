@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 13:35:06
  * Last edited:
- *   02/05/2021, 15:59:11
+ *   02/05/2021, 18:13:32
  * Auto updated?
  *   Yes
  *
@@ -40,7 +40,7 @@ namespace RayTracer::ECS {
     Triangle* create_triangle(const glm::vec3& p1, const glm::vec3& p2, const glm::vec3& p3, const glm::vec3& normal, const glm::vec3& color);
 
     /* Pre-renders the sphere on the CPU, single-threaded. */
-    void cpu_pre_render_triangle(Tools::Array<Vertex>& vertices, const Triangle& triangle);
+    void cpu_pre_render_triangle(Tools::Array<Vertex>& vertices, Triangle* triangle);
 
 }
 

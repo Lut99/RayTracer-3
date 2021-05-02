@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   02/05/2021, 17:41:36
+ *   02/05/2021, 18:18:47
  * Auto updated?
  *   Yes
  *
@@ -15,6 +15,7 @@
 #include <functional>
 #include <CppDebugger.hpp>
 
+#include "compute/Pipeline.hpp"
 #include "compute/ErrorCodes.hpp"
 
 #include "entities/Triangle.hpp"
@@ -28,6 +29,19 @@ using namespace RayTracer;
 using namespace RayTracer::Compute;
 using namespace RayTracer::ECS;
 using namespace CppDebugger::SeverityValues;
+
+
+/***** STRUCTS *****/
+/* Struct used to carry camera data to the GPU. */
+struct GCameraData {
+    alignas(16) glm::vec3 origin;
+    alignas(16) glm::vec3 horizontal;
+    alignas(16) glm::vec3 vertical;
+    alignas(16) glm::vec3 lower_left_corner;
+};
+
+
+
 
 
 /***** VULKANRENDERER CLASS *****/
@@ -57,6 +71,9 @@ VulkanRenderer::VulkanRenderer() :
     this->raytrace_dsl = new DescriptorSetLayout(*this->gpu);
     this->raytrace_dsl->add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
     this->raytrace_dsl->add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
+    this->raytrace_dsl->add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
+    this->raytrace_dsl->add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
+    this->raytrace_dsl->finalize();
 
     // Allocate re-useable command buffers
     this->staging_cb_h = this->memory_command_pool->allocate();
@@ -156,7 +173,7 @@ VulkanRenderer::~VulkanRenderer() {
 
 
 /* Pre-renders the given list of RenderEntities, accelerated using Vulkan compute shaders. */
-void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity>& entities) {
+void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities) {
     DENTER("VulkanRenderer::prerender");
 
     // We start by throwing out any old vertices we might have
@@ -172,37 +189,37 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity>& entities) 
         vertices.clear();
 
         // Select the proper pre-render mode
-        if (entities[i].pre_render_mode & EntityPreRenderModeFlags::eprmf_gpu) {
+        if (entities[i]->pre_render_mode & EntityPreRenderModeFlags::eprmf_gpu) {
             // Determine the type of pre-rendering operation we need to do
-            switch (entities[i].pre_render_operation) {
+            switch (entities[i]->pre_render_operation) {
                 // case EntityPreRenderOperation::generate_sphere:
                 //     /* Prepare the pipeline using this shader. */
                 //     break;
 
                 default:
-                    DLOG(fatal, "Entity " + std::to_string(i) + " wants to be pre-rendered on the CPU using unsupported operation '" + entity_pre_render_operation_names[entities[i].pre_render_operation] + "'.");
+                    DLOG(fatal, "Entity " + std::to_string(i) + " wants to be pre-rendered on the CPU using unsupported operation '" + entity_pre_render_operation_names[entities[i]->pre_render_operation] + "'.");
 
             }
 
-        } else if (entities[i].pre_render_mode & EntityPreRenderModeFlags::eprmf_cpu) {
+        } else if (entities[i]->pre_render_mode & EntityPreRenderModeFlags::eprmf_cpu) {
             // Determine the type of pre-rendering operation we need to do
-            switch (entities[i].pre_render_operation) {
+            switch (entities[i]->pre_render_operation) {
                 // case EntityPreRenderOperation::generate_sphere:
                 //     /* Call the generate sphere CPU function. */
                 //     break;
 
                 case EntityPreRenderOperation::epro_generate_triangle:
                     /* Call the generate triangle CPU function. */
-                    cpu_pre_render_triangle(vertices, static_cast<const Triangle&>(entities[i]));
+                    cpu_pre_render_triangle(vertices, (Triangle*) entities[i]);
                     break;
 
                 default:
-                    DLOG(fatal, "Entity " + std::to_string(i) + " wants to be pre-rendered on the GPU using unsupported operation '" + entity_pre_render_operation_names[entities[i].pre_render_operation] + "'.");
+                    DLOG(fatal, "Entity " + std::to_string(i) + " wants to be pre-rendered on the GPU using unsupported operation '" + entity_pre_render_operation_names[entities[i]->pre_render_operation] + "'.");
 
             }
 
         } else {
-            DLOG(fatal, "Entity " + std::to_string(i) + " of type " + entity_type_names[entities[i].type] + " with the Vulkan compute shader back-end.");
+            DLOG(fatal, "Entity " + std::to_string(i) + " of type " + entity_type_names[entities[i]->type] + " with the Vulkan compute shader back-end.");
         }
 
         // Regardless of how we pre-rendered, we can now condense the resulting arrays in indexed equivalents
@@ -243,7 +260,7 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity>& entities) 
 }
 
 /* Renders the internal list of vertices to a frame using the given camera position. */
-void VulkanRenderer::render(Camera& camera) const {
+void VulkanRenderer::render(Camera& cam) const {
     DENTER("VulkanRenderer::render");
 
     /* Step 1: Buffer initialization. */
@@ -283,28 +300,67 @@ void VulkanRenderer::render(Camera& camera) const {
 
 
 
-    /* Step 2: Descriptor set initialization. */
-    // First, copy the internal descriptor set and add the camera layout
-    DescriptorSetLayout layout(*this->raytrace_dsl);
-    camera.set_layout(layout);
-    layout.finalize();
+    /* Step 2: Camera buffer initialization. */
+    // First, allocate buffers for the frame and the camera data
+    uint32_t width = cam.w(), height = cam.h();
+    size_t camera_size = sizeof(GCameraData);
+    size_t frame_size = width * height * sizeof(glm::vec4);
+    BufferHandle camera_h = this->device_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    BufferHandle frame_h = this->device_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    Buffer camera = (*this->device_memory_pool)[camera_h];
+    Buffer frame = (*this->device_memory_pool)[frame_h];
 
-    // Next, allocate a DescriptorSet & set all bindings
-    DescriptorSet descriptor_set = this->descriptor_pool->allocate(layout);
-    descriptor_set.set(*this->gpu, 0, Tools::Array<Buffer>({ vertices }));
-    descriptor_set.set(*this->gpu, 1, Tools::Array<Buffer>({ points }));
-    camera.set_bindings(descriptor_set);
-    // Note: We assume the camera to already be synced at this point
+    // Next, get two staging buffers for these two fellas
+    BufferHandle camera_staging_h = this->stage_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    BufferHandle frame_staging_h = this->stage_memory_pool->allocate(frame_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Buffer camera_staging = (*this->stage_memory_pool)[camera_staging_h];
+    Buffer frame_staging = (*this->stage_memory_pool)[frame_staging_h];
+
+    // Map each of the two staging buffers to host-reachable memory
+    void *camera_staging_map, *frame_staging_map;
+    camera_staging.map(*this->gpu, &camera_staging_map);
+    frame_staging.map(*this->gpu, &frame_staging_map);
+
+    // Populate the data. For the camera this is rather manual...
+    ((GCameraData*) camera_staging_map)->origin = cam.origin;
+    ((GCameraData*) camera_staging_map)->horizontal = cam.horizontal;
+    ((GCameraData*) camera_staging_map)->vertical = cam.vertical;
+    ((GCameraData*) camera_staging_map)->lower_left_corner = cam.lower_left_corner;
+    // ...while this is just another copy for the frame.
+    memcpy(frame_staging_map, (void*) cam.get_frame().d(), frame_size);
+
+    // Flush & unmap the staging buffers
+    camera_staging.flush(*this->gpu);
+    frame_staging.flush(*this->gpu);
+    camera_staging.unmap(*this->gpu);
+    frame_staging.unmap(*this->gpu);
+
+    // Next, we schedule the copies of the staging buffers to the real buffers
+    camera_staging.copyto(this->gpu->memory_queue(), staging_cb, camera, false);
+    frame_staging.copyto(this->gpu->memory_queue(), staging_cb, frame, true);
+
+    // Once that's done, deallocate the staging buffers
+    this->stage_memory_pool->deallocate(camera_staging_h);
+    this->stage_memory_pool->deallocate(frame_staging_h);
 
 
 
-    /* Step 3: Render the frame. */
+    /* Step 3: Descriptor set initialization. */
+    // Allocate a DescriptorSet & set all bindings
+    DescriptorSet descriptor_set = this->descriptor_pool->allocate(*this->raytrace_dsl);
+    descriptor_set.set(*this->gpu, 0, Tools::Array<Buffer>({ frame }));
+    descriptor_set.set(*this->gpu, 1, Tools::Array<Buffer>({ camera }));
+    descriptor_set.set(*this->gpu, 2, Tools::Array<Buffer>({ vertices }));
+    descriptor_set.set(*this->gpu, 3, Tools::Array<Buffer>({ points }));
+
+
+
+    /* Step 4: Render the frame. */
     // Initialize a new pipeline using the new layout
-    uint32_t width = camera.w(), height = camera.h();
     Pipeline pipeline(
         *this->gpu,
         Shader(*this->gpu, Tools::get_executable_path() + "/shaders/raytracer_v1.spv"),
-        Tools::Array<DescriptorSetLayout>({ layout }),
+        Tools::Array<DescriptorSetLayout>({ *this->raytrace_dsl }),
         std::unordered_map<uint32_t, std::tuple<uint32_t, void*>>({ { 0, std::make_tuple(sizeof(uint32_t), (void*) &width) }, { 1, std::make_tuple(sizeof(uint32_t), (void*) &height) } })
     );
 
@@ -339,6 +395,8 @@ void VulkanRenderer::render(Camera& camera) const {
     this->descriptor_pool->deallocate(descriptor_set);
 
     // Cleanup the GPU buffers
+    this->device_memory_pool->deallocate(frame_h);
+    this->device_memory_pool->deallocate(camera_h);
     this->device_memory_pool->deallocate(points_h);
     this->device_memory_pool->deallocate(vertices_h);
 
@@ -376,7 +434,9 @@ void RayTracer::swap(VulkanRenderer& r1, VulkanRenderer& r2) {
 Renderer* RayTracer::initialize_renderer() {
     DENTER("initialize_renderer");
 
+    // Initialize a new object
+    VulkanRenderer* result = new VulkanRenderer();
 
-
-    DRETURN nullptr;
+    // Done, return
+    DRETURN (Renderer*) result;
 }

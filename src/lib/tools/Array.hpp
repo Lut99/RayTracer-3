@@ -36,9 +36,6 @@ namespace Tools {
         size_t max_length;
 
     public:
-        /* The type stored by this array. */
-        using type = T;
-
         /* Default constructor for the Array class, which initializes it to zero. */
         Array();
         /* Constructor for the Array class, which takes an initial amount to size to. Each element will thus be uninitialized. */
@@ -117,9 +114,6 @@ namespace Tools {
     template <class T>
     class Array<T, false, true, true>: public Array<T, true, true, true> {
     public:
-        /* The type stored by this array. */
-        using type = T;
-
         /* Default constructor for the Array class, which initializes it to zero. */
         Array(): Array<T, true, true, true>() {}
         /* Constructor for the Array class, which takes an initial amount to size to. Each element will thus be uninitialized. */
@@ -154,9 +148,6 @@ namespace Tools {
     template <class T>
     class Array<T, true, false, true>: public Array<T, true, true, true> {
     public:
-        /* The type stored by this array. */
-        using type = T;
-
         /* Default constructor for the Array class, which initializes it to zero. */
         Array(): Array<T, true, true, true>() {}
         /* Constructor for the Array class, which takes an initial amount to size to. Each element will thus be uninitialized. */
@@ -187,9 +178,6 @@ namespace Tools {
     template <class T>
     class Array<T, true, true, false>: public Array<T, true, true, true> {
     public:
-        /* The type stored by this array. */
-        using type = T;
-
         /* Default constructor for the Array class, which initializes it to zero. */
         Array(): Array<T, true, true, true>() {}
         /* Constructor for the Array class, which takes an initial amount to size to. Each element will thus be uninitialized. */
@@ -226,9 +214,6 @@ namespace Tools {
     template <class T>
     class Array<T, false, false, true>: public Array<T, true, true, true> {
     public:
-        /* The type stored by this array. */
-        using type = T;
-
         /* Default constructor for the Array class, which initializes it to zero. */
         Array(): Array<T, true, true, true>() {}
         /* Constructor for the Array class, which takes an initial amount to size to. Each element will thus be uninitialized. */
@@ -262,9 +247,6 @@ namespace Tools {
     template <class T>
     class Array<T, false, true, false>: public Array<T, true, true, true> {
     public:
-        /* The type stored by this array. */
-        using type = T;
-
         /* Default constructor for the Array class, which initializes it to zero. */
         Array(): Array<T, true, true, true>() {}
         /* Constructor for the Array class, which takes an initial amount to size to. Each element will thus be uninitialized. */
@@ -304,9 +286,6 @@ namespace Tools {
     template <class T>
     class Array<T, true, false, false>: public Array<T, true, true, true> {
     public:
-        /* The type stored by this array. */
-        using type = T;
-
         /* Default constructor for the Array class, which initializes it to zero. */
         Array(): Array<T, true, true, true>() {}
         /* Constructor for the Array class, which takes an initial amount to size to. Each element will thus be uninitialized. */
@@ -337,9 +316,6 @@ namespace Tools {
     template <class T>
     class Array<T, false, false, false>: public Array<T, true, true, true> {
     public:
-        /* The type stored by this array. */
-        using type = T;
-
         /* Default constructor for the Array class, which initializes it to zero. */
         Array(): Array<T, true, true, true>() {}
         /* Constructor for the Array class, which takes an initial amount to size to. Each element will thus be uninitialized. */

@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 13:35:10
  * Last edited:
- *   02/05/2021, 15:59:38
+ *   02/05/2021, 18:13:43
  * Auto updated?
  *   Yes
  *
@@ -47,14 +47,14 @@ Triangle* ECS::create_triangle(const glm::vec3& p1, const glm::vec3& p2, const g
 
 
 /* Pre-renders the sphere on the CPU, single-threaded. */
-void ECS::cpu_pre_render_triangle(Tools::Array<Vertex>& vertices, const Triangle& triangle) {
+void ECS::cpu_pre_render_triangle(Tools::Array<Vertex>& vertices, Triangle* triangle) {
     DENTER("ECS::cpu_pre_render_triangle");
 
     // We set one vertex
     vertices = {{
-        triangle.points[0], triangle.points[1], triangle.points[2],
-        triangle.normal,
-        triangle.color
+        triangle->points[0], triangle->points[1], triangle->points[2],
+        triangle->normal,
+        triangle->color
     }};
 
     // Done!
