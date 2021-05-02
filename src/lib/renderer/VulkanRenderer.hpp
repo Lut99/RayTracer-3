@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:28
  * Last edited:
- *   30/04/2021, 15:16:12
+ *   02/05/2021, 17:35:00
  * Auto updated?
  *   Yes
  *
@@ -23,6 +23,7 @@
 #include "compute/DescriptorPool.hpp"
 #include "compute/CommandPool.hpp"
 
+#include "Vertex.hpp"
 #include "Renderer.hpp"
 
 namespace RayTracer {
@@ -62,14 +63,15 @@ namespace RayTracer {
         /* Command pool used to schedule quick memory jobs on. */
         Compute::CommandPool* memory_command_pool;
 
+        /* The DescriptorSetLayout for the standard raytrace shader call. */
+        Compute::DescriptorSetLayout* raytrace_dsl;
+        /* Command buffer that is used to schedule staging-related memory transfers on. */
+        Compute::CommandBufferHandle staging_cb_h;
+
         /* The pre-rendered list of vertices, which we can send to the GPU. */
-        Tools::Array<glm::vec4> entity_vertices;
-        /* The pre-rendered list of vertex normals, which we can send to the GPU. */
-        Tools::Array<glm::vec4> entity_normals;
-        /* The pre-rendered list of vertex colors, which we can send to the GPU. */
-        Tools::Array<glm::vec4> entity_colors;
-        /* The number of vertices that we pre-rendered. */
-        uint32_t n_entity_vertices;
+        Tools::Array<GVertex> entity_vertices;
+        /* The pre-rendered list of points referred to by the vertices, which we can send to the GPU. */
+        Tools::Array<glm::vec4> entity_points;
 
     public:
         /* Constructor for the VulkanRenderer class. */

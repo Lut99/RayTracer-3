@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:39:16
  * Last edited:
- *   30/04/2021, 15:00:15
+ *   02/05/2021, 17:36:23
  * Auto updated?
  *   Yes
  *
@@ -89,6 +89,10 @@ namespace RayTracer::Compute {
         DescriptorSet allocate(const DescriptorSetLayout& descriptor_set_layout);
         /* Allocates multiple descriptor sets with the given layout, returning them as an Array. Will fail with errors if there's no more space. */
         Tools::Array<DescriptorSet> nallocate(uint32_t n_sets, const Tools::Array<DescriptorSetLayout>& descriptor_set_layouts);
+        /* Deallocates the given descriptor set. */
+        void deallocate(const DescriptorSet& descriptor_set);
+        /* Deallocates an array of given descriptors set. */
+        void ndeallocate(const Tools::Array<DescriptorSet>& descriptor_sets);
 
         /* Returns the current number of sets allocated in this pool. */
         inline size_t size() const { return this->vk_descriptor_sets.size(); }
@@ -101,7 +105,7 @@ namespace RayTracer::Compute {
         inline operator VkDescriptorPool() const { return this->vk_descriptor_pool; }
 
         /* Copy assignment operator for the DescriptorPool class. */
-        inline DescriptorPool& operator=(const DescriptorPool& other) { *this = DescriptorPool(other); }
+        inline DescriptorPool& operator=(const DescriptorPool& other) { return *this = DescriptorPool(other); }
         /* Move assignment operator for the DescriptorPool class. */
         inline DescriptorPool& operator=(DescriptorPool&& other) { if (this != &other) { swap(*this, other); } return *this; }
         /* Swap operator for the DescriptorPool class. */

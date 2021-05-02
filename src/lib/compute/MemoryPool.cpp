@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   30/04/2021, 14:51:25
+ *   02/05/2021, 16:41:11
  * Auto updated?
  *   Yes
  *
@@ -153,7 +153,7 @@ void  Buffer::unmap(const GPU& gpu) const {
 
 
 /* Copies this buffer's content to another given buffer. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Note that the given buffer needn't come from the same memory pool. */
-void Buffer::copyto(const GPU& gpu, CommandBuffer& command_buffer, const Buffer& destination, bool wait_queue_idle) const {
+void Buffer::copyto(VkQueue vk_queue, CommandBuffer& command_buffer, const Buffer& destination, bool wait_queue_idle) const {
     DENTER("Compute::Buffer::copyto");
 
     // First, check if the destination buffer is large enough
@@ -180,7 +180,7 @@ void Buffer::copyto(const GPU& gpu, CommandBuffer& command_buffer, const Buffer&
     vkCmdCopyBuffer(command_buffer, this->vk_buffer, destination.vk_buffer, 1, &copy_region);
 
     // Since that's all, submit the queue. Note that we only return once the copy is 
-    command_buffer.end(gpu.memory_queue(), wait_queue_idle);
+    command_buffer.end(vk_queue, wait_queue_idle);
 
     DRETURN;
 }

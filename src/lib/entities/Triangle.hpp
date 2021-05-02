@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 13:35:06
  * Last edited:
- *   01/05/2021, 13:41:50
+ *   02/05/2021, 15:59:11
  * Auto updated?
  *   Yes
  *
@@ -18,6 +18,8 @@
 #include "glm/glm.hpp"
 
 #include "RenderEntity.hpp"
+
+#include "renderer/Vertex.hpp"
 
 #include "tools/Array.hpp"
 
@@ -38,7 +40,7 @@ namespace RayTracer::ECS {
     Triangle* create_triangle(const glm::vec3& p1, const glm::vec3& p2, const glm::vec3& p3, const glm::vec3& normal, const glm::vec3& color);
 
     /* Pre-renders the sphere on the CPU, single-threaded. */
-    void cpu_pre_render_triangle(Tools::Array<uint32_t>& indices, Tools::Array<glm::vec4>& vertices, Tools::Array<glm::vec4>& normals, Tools::Array<glm::vec4>& colors, const Triangle& triangle);
+    void cpu_pre_render_triangle(Tools::Array<Vertex>& vertices, const Triangle& triangle);
 
 }
 

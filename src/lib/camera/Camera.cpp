@@ -4,7 +4,7 @@
  * Created:
  *   28/04/2021, 20:08:23
  * Last edited:
- *   29/04/2021, 15:43:11
+ *   02/05/2021, 17:36:42
  * Auto updated?
  *   Yes
  *
@@ -66,7 +66,7 @@ Camera::Camera(const Camera& other) :
     this->gpu_buffer = this->pool->allocate(sizeof(CameraData), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     // Use the command buffer to copy the data to the new GPU buffer
     MemoryPool& pool = *(this->pool);
-    pool[other.gpu_buffer].copyto(this->gpu, this->cmd_buffer, pool[this->gpu_buffer]);
+    pool[other.gpu_buffer].copyto(this->gpu.memory_queue(), this->cmd_buffer, pool[this->gpu_buffer]);
 
     // Done
     DLEAVE;
@@ -179,12 +179,11 @@ void Camera::set_bindings(Compute::DescriptorSet& descriptor_set) const {
 
 
 
-/* Renders a single frame for the camera, using the given World object. To retrieve the frame, call get_frame() when the queue is guaranteed to be idle. */
-void Camera::render(Compute::MemoryPool& mpool, Compute::CommandPool& cpool, const Compute::Pipeline& pipeline, VkQueue vk_compute_queue, Compute::DescriptorSet& descriptor_set /* TBD */, bool wait_queue_idle) {
-    DENTER("Camera::render");
+/* Synchronizes the Camera with the GPU buffers, so they can be used during rendering. */
+void Camera::sync(Compute::MemoryPool& mpool) {
+    DENTER("Camera::sync");
 
     // First, update camera stuff; push the CPU buffer to the GPU
-    DLOG(info, "Syncing camera with GPU...");
     BufferHandle staging_buffer_h = mpool.allocate(sizeof(CameraData), VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
     Buffer staging_buffer = mpool[staging_buffer_h];
 
@@ -196,48 +195,16 @@ void Camera::render(Compute::MemoryPool& mpool, Compute::CommandPool& cpool, con
     staging_buffer.unmap(this->gpu);
 
     // Use the internal command buffer to schedule the copy
-    staging_buffer.copyto(this->gpu, this->cmd_buffer, (*(this->pool))[this->gpu_buffer]);
+    staging_buffer.copyto(this->gpu.memory_queue(), this->cmd_buffer, (*(this->pool))[this->gpu_buffer]);
 
     // Once done, deallocate the staging buffer
     mpool.deallocate(staging_buffer_h);
 
-    // Next, also in the update camera corner, update the camera bindings
-    this->set_bindings(descriptor_set);
-    
-    
-
-    // Next, we can begin the render phase; record the command buffer
-    DLOG(info, "Recording command buffer...");
-    CommandBuffer cb_compute = cpool[cpool.allocate()];
-    cb_compute.begin();
-    pipeline.bind(cb_compute);
-    descriptor_set.bind(cb_compute, pipeline.layout());
-    vkCmdDispatch(cb_compute, (this->frame->w() / 32) + 1, (this->frame->h() / 32) + 1, 1);
-    cb_compute.end();
-
-
-    
-    // With the buffer recorded, submit it to the given queue
-    DLOG(info, "Launching pipeline...");
-    VkResult vk_result;
-    VkSubmitInfo submit_info = cb_compute.get_submit_info();
-    if ((vk_result = vkQueueSubmit(vk_compute_queue, 1, &submit_info, VK_NULL_HANDLE)) != VK_SUCCESS) {
-        DLOG(fatal, "Could not submit command buffer to queue: " + vk_error_map[vk_result]);
-    }
-
-
-
-    // If we're told to wait, then wait until the queue is idle; otherwise, continue
-    if (wait_queue_idle) {
-        DLOG(info, "Waiting for queue to become idle...");
-        if ((vk_result = vkQueueWaitIdle(vk_compute_queue)) != VK_SUCCESS) {
-            DLOG(fatal, "Could not wait for queue to become idle: " + vk_error_map[vk_result]);
-        }
-    }
-
     // Done
     DRETURN;
 }
+
+
 
 /* Returns the result of a render as a constant reference to the internal frame. Note that the queue where it was rendered should really be idle before you call this. */
 const Frame& Camera::get_frame(Compute::MemoryPool& staging_pool) const {

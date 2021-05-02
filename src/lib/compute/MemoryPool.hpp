@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:35
  * Last edited:
- *   30/04/2021, 14:48:01
+ *   02/05/2021, 16:41:07
  * Auto updated?
  *   Yes
  *
@@ -62,8 +62,8 @@ namespace RayTracer::Compute {
         /* Unmaps buffer's memory. */
         void unmap(const GPU& gpu) const;
 
-        /* Copies this buffer's content to another given buffer. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Optionally waits until the queue is idle before returning. Note that the given buffer needn't come from the same memory pool. */
-        void copyto(const GPU& gpu, CommandBuffer& command_buffer, const Buffer& destination, bool wait_queue_idle = true) const;
+        /* Copies this buffer's content to another given buffer on the given memory-enabled GPU queue. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Optionally waits until the queue is idle before returning. Note that the given buffer needn't come from the same memory pool. */
+        void copyto(VkQueue vk_queue, CommandBuffer& command_buffer, const Buffer& destination, bool wait_queue_idle = true) const;
 
         /* Returns the size of the buffer, in bytes. */
         inline VkDeviceSize size() const { return this->vk_memory_size; }

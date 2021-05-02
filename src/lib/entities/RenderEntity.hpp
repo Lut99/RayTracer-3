@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:08:59
  * Last edited:
- *   01/05/2021, 13:37:48
+ *   02/05/2021, 17:38:30
  * Auto updated?
  *   Yes
  *
@@ -23,11 +23,11 @@ namespace RayTracer::ECS {
     /* List of all entities registered to the RayTracer. */
     enum EntityType {
         /* A type indicating that it's not set yet. */
-        none = 0,
+        et_none = 0,
         /* Basic, 2D-triangle shape. */
-        triangle = 1,
+        et_triangle = 1,
         /* Basic sphere shape. */
-        sphere = 2
+        et_sphere = 2
     };
     /* Maps an entity type to a string name. */
     static const std::string entity_type_names[] = {
@@ -41,21 +41,21 @@ namespace RayTracer::ECS {
     /* The mode in which the entity needs to be pre-rendered. */
     enum EntityPreRenderModeFlags {
         /* No render mode defined. */
-        none = 0x0,
+        eprmf_none = 0x0,
         /* Can be pre-rendered on the CPU. */
-        cpu = 0x1,
+        eprmf_cpu = 0x1,
         /* Can be pre-rendered on the GPU. */  
-        gpu = 0x2
+        eprmf_gpu = 0x2
     };
 
     /* Describes the possible pre-rendering operations that the Renderer has to do for this entity. */
     enum EntityPreRenderOperation {
         /* No render operation defined. */
-        none = 0,
+        epro_none = 0,
         /* Generate a 2D triangle. */
-        generate_triangle = 1,
+        epro_generate_triangle = 1,
         /* Generate a 3D sphere. */
-        generate_sphere = 2
+        epro_generate_sphere = 2
     };
     /* Maps an entity pre render operation to a string name. */
     static const std::string entity_pre_render_operation_names[] = {

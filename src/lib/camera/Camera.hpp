@@ -4,7 +4,7 @@
  * Created:
  *   28/04/2021, 20:08:29
  * Last edited:
- *   29/04/2021, 15:40:03
+ *   02/05/2021, 17:28:53
  * Auto updated?
  *   Yes
  *
@@ -80,8 +80,9 @@ namespace RayTracer {
         /* Writes buffers to the bindings set in set_layout. Will throw errors if no binding has been set first. */
         void set_bindings(Compute::DescriptorSet& descriptor_set) const;
 
-        /* Renders a single frame for the camera, using the given World object. To retrieve the frame, call get_frame() when the queue is guaranteed to be idle. */
-        void render(Compute::MemoryPool& mpool, Compute::CommandPool& cpool, const Compute::Pipeline& pipeline, VkQueue vk_compute_queue, Compute::DescriptorSet& descriptor_set /* TBD */, bool wait_queue_idle = true);
+        /* Synchronizes the Camera with the GPU buffers, so they can be used during rendering. */
+        void sync(Compute::MemoryPool& mpool);
+        
         /* Returns the result of a render as a constant reference to the internal frame. Note that the queue where it was rendered should really be idle before you call this. */
         const Frame& get_frame(Compute::MemoryPool& staging_pool) const;
 

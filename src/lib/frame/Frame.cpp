@@ -4,7 +4,7 @@
  * Created:
  *   28/04/2021, 14:28:32
  * Last edited:
- *   29/04/2021, 15:45:50
+ *   02/05/2021, 17:37:39
  * Auto updated?
  *   Yes
  *
@@ -98,7 +98,7 @@ Frame::Frame(const Frame& other) :
     this->gpu_buffer = this->pool->allocate(FRAME_SIZE(this->width, this->height), VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     // Copy the data
     MemoryPool& pool = *(this->pool);
-    pool[other.gpu_buffer].copyto(this->gpu, this->cmd_buffer, pool[this->gpu_buffer]);
+    pool[other.gpu_buffer].copyto(this->gpu.memory_queue(), this->cmd_buffer, pool[this->gpu_buffer]);
 
     DLEAVE;
 }
@@ -179,7 +179,7 @@ void Frame::sync(Compute::MemoryPool& staging_pool) {
     Buffer staging_buffer = staging_pool[staging_buffer_h];
 
     // Copy one buffer to the other, using the internal memory queue
-    frame_buffer.copyto(this->gpu, this->cmd_buffer, staging_buffer);
+    frame_buffer.copyto(this->gpu.memory_queue(), this->cmd_buffer, staging_buffer);
 
     // Map the staging buffer to host memory to access it
     pixel_t* staging_map;

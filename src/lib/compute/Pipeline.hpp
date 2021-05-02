@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 14:44:28
  * Last edited:
- *   28/04/2021, 21:21:00
+ *   02/05/2021, 17:23:11
  * Auto updated?
  *   Yes
  *
@@ -22,6 +22,8 @@
 #include "DescriptorSetLayout.hpp"
 #include "CommandPool.hpp"
 #include "Shader.hpp"
+
+#include "tools/Array.hpp"
 
 namespace RayTracer::Compute {
     /* The Pipeline class, which is the pipeline that actually contains our compute shaders. */

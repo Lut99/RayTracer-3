@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:38:48
  * Last edited:
- *   30/04/2021, 15:00:53
+ *   02/05/2021, 17:04:50
  * Auto updated?
  *   Yes
  *
@@ -362,6 +362,60 @@ Tools::Array<DescriptorSet> DescriptorPool::nallocate(uint32_t n_sets, const Too
 
     // Return a reference to this descriptor set
     DRETURN result;
+}
+
+/* Deallocates the given descriptor set. */
+void DescriptorPool::deallocate(const DescriptorSet& descriptor_set) {
+    DENTER("Compute::DescriptorPool::deallocate");
+
+    // First, check to see if we know this one
+    for (size_t i = 0; i < this->vk_descriptor_sets.size(); i++) {
+        if (this->vk_descriptor_sets[i] == descriptor_set.vk_descriptor_set) {
+            // Deallocate it
+            VkResult vk_result;
+            if ((vk_result = vkFreeDescriptorSets(this->gpu, this->vk_descriptor_pool, 1, &this->vk_descriptor_sets[i])) != VK_SUCCESS) {
+                DLOG(fatal, "Could not free descriptor set: " + vk_error_map[vk_result]);
+            }
+
+            // Done
+            DRETURN;
+        }
+    }
+
+    // It wasn't found
+    DLOG(fatal, "Given descriptor set is not allocated with this pool");
+    DRETURN;
+}
+
+/* Deallocates an array of given descriptors set. */
+void DescriptorPool::ndeallocate(const Tools::Array<DescriptorSet>& descriptor_sets) {
+    DENTER("Compute::DescriptorPool::ndeallocate");
+
+    // First, collect a list of vulkan descriptor sets
+    Tools::Array<VkDescriptorSet> to_free(descriptor_sets.size()); 
+    for (size_t i = 0; i < descriptor_sets.size(); i++) {
+        for (size_t j = 0; j < this->vk_descriptor_sets.size(); j++) {
+            if (this->vk_descriptor_sets[j] == descriptor_sets[i].vk_descriptor_set) {
+                // Mark it for deallocation
+                to_free.push_back(descriptor_sets[i]);
+                break;
+            }
+        }
+    }
+
+    // If the sizes are not equal, then some of them aren't found
+    if (to_free.size() != descriptor_sets.size()) {
+        DLOG(fatal, "Not all given descriptor sets are allocated with this pool");
+    }
+
+    // If they do match, then do a single free call to deallocate them all
+    VkResult vk_result;
+    if ((vk_result = vkFreeDescriptorSets(this->gpu, this->vk_descriptor_pool, static_cast<uint32_t>(to_free.size()), to_free.rdata())) != VK_SUCCESS) {
+        DLOG(fatal, "Could not free descriptor sets: " + vk_error_map[vk_result]);
+    }
+
+    // Done!
+    DRETURN;
 }
 
 

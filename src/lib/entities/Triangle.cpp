@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 13:35:10
  * Last edited:
- *   01/05/2021, 13:43:34
+ *   02/05/2021, 15:59:38
  * Auto updated?
  *   Yes
  *
@@ -47,18 +47,15 @@ Triangle* ECS::create_triangle(const glm::vec3& p1, const glm::vec3& p2, const g
 
 
 /* Pre-renders the sphere on the CPU, single-threaded. */
-void ECS::cpu_pre_render_triangle(Tools::Array<uint32_t>& indices, uint32_t n_vertices, Tools::Array<glm::vec4>& vertices, Tools::Array<glm::vec4>& normals, Tools::Array<glm::vec4>& colors, const Triangle& triangle) {
+void ECS::cpu_pre_render_triangle(Tools::Array<Vertex>& vertices, const Triangle& triangle) {
     DENTER("ECS::cpu_pre_render_triangle");
 
-    // Search the list of vertices if it exists already
-    bool found = false;
-    for (size_t j = 0; j < n_vertices; j++) {
-        if (vertices[v] == glm::vec4(triangle.points[i], 0.0) &&
-            normals[])
-        {
-            
-        }
-    }
+    // We set one vertex
+    vertices = {{
+        triangle.points[0], triangle.points[1], triangle.points[2],
+        triangle.normal,
+        triangle.color
+    }};
 
     // Done!
     DRETURN;
