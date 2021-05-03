@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 13:59:41
  * Last edited:
- *   03/05/2021, 16:36:00
+ *   03/05/2021, 21:17:00
  * Auto updated?
  *   Yes
  *
@@ -82,7 +82,7 @@ layout(std430, set = 0, binding = 3) buffer Points {
 vec4 ray_color(vec3 origin, vec3 direction) {
     // Loop through the vertices so find any one we hit
     uint min_i = 0;
-    float min_t = 10000000000000000000000000000.0;
+    float min_t = 1e99;
     for (uint i = 0; i < vertices.data.length(); i++) {
         // First, check if the ray happens to be perpendicular to the triangle's plane
         vec3 normal = vertices.data[i].normal.xyz;
@@ -109,19 +109,20 @@ vec4 ray_color(vec3 origin, vec3 direction) {
         // Now, compute the actual point where we hit the plane
         vec3 hitpoint = origin + t * direction;
 
-        // With this point, we can check if the point is within the vertex
-        // Code from: https://gdbooks.gitbooks.io/3dcollisions/content/Chapter4/point_in_triangle.html
-        // First, we move the triangle s.t. the hitpoint become the origin of said triangle
-        p1 -= hitpoint;
-        p2 -= hitpoint;
-        p3 -= hitpoint;
-        // Next, we compute the normals of the triangles spanned by three new triangles that are drawn between the origin and the edges
-        vec3 u = cross(p2, p3);
-        vec3 v = cross(p3, p1);
-        vec3 w = cross(p1, p2);
-        // Then, we can test if they are all facing the same way.
-        if (dot(u, v) >= 0.0 && dot(u, w) >= 0.0) {
-            //It's a hit! Store it as the closest t so far
+        // We can now compute barycentric coordinates from the hitpoint to see if the point is also within the triangle
+        // General idea: https://stackoverflow.com/a/37552406/5270125
+        // First, we compute alpha by finding the area of the triangle spanned by two edges of the triangle and the point we want to find
+        float S = 0.5 * length(cross(p1 - p2, p1 - p3));
+        float alpha = (0.5 * length(cross(p2 - hitpoint, p2 - p3))) / S;
+        float beta = (0.5 * length(cross(hitpoint - p1, hitpoint - p3))) / S;
+        float gamma = (0.5 * length(cross(hitpoint - p1, hitpoint - p2))) / S;
+
+        // With this, we can perform the actual bounds-check
+        if (alpha >= 0 && alpha <= 1 &&
+            beta  >= 0 && beta  <= 1 &&
+            gamma >= 0 && gamma <= 1)
+        {
+            // It's a hit! Store it as the closest t so far
             min_i = i;
             min_t = t;
             continue;
@@ -129,7 +130,7 @@ vec4 ray_color(vec3 origin, vec3 direction) {
     }
 
     // If we hit a vertex (or its too far away), return its color
-    if (min_t < 10000000000000000000000000000.0) {
+    if (min_t < 1e99) {
         return vertices.data[min_i].color;
     } else {
         // Return the blue sky

@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 12:45:50
  * Last edited:
- *   03/05/2021, 18:19:36
+ *   03/05/2021, 21:18:01
  * Auto updated?
  *   Yes
  *
@@ -166,6 +166,7 @@ void ECS::cpu_pre_render_sphere(Tools::Array<Vertex>& vertices, Sphere* sphere) 
                 // glm::vec3 color = glm::vec3((float) vertices.size() / (float) (2 + (sphere->n_parallels - 2) * sphere->n_meridians), 0.0, 0.0);
                 // glm::vec3 color = glm::vec3(1.0, 0.0, 0.0) * fabs(glm::dot(normal, glm::vec3(0.0, 0.0, -1.0)));;
                 glm::vec3 color = sphere->color * fabs(glm::dot(normal, glm::vec3(0.0, 0.0, -1.0)));
+                // glm::vec3 color = glm::vec3(1.0, 0.0, 0.0);
 
                 // Append it to the list
                 vertices.push_back({
@@ -183,6 +184,7 @@ void ECS::cpu_pre_render_sphere(Tools::Array<Vertex>& vertices, Sphere* sphere) 
                 glm::vec3 p3 = circle[i];
                 glm::vec3 normal = glm::normalize(glm::cross(p3 - p1, p2 - p1));
                 glm::vec3 color = sphere->color * fabs(glm::dot(normal, glm::vec3(0.0, 0.0, -1.0)));
+                // glm::vec3 color = glm::vec3(1.0, 0.0, 0.0);
                 // glm::vec3 color = glm::vec3(0.0, 1.0, 0.0) * fabs(glm::dot(normal, glm::vec3(0.0, 0.0, -1.0)));
                 // glm::vec3 color = glm::vec3(0.0, 1.0, 0.0);
 
@@ -222,6 +224,7 @@ void ECS::cpu_pre_render_sphere(Tools::Array<Vertex>& vertices, Sphere* sphere) 
         glm::vec3 p3 = prev_circle[i];
         glm::vec3 normal = glm::normalize(glm::cross(p3 - p1, p2 - p1));
         glm::vec3 color = sphere->color * fabs(glm::dot(normal, glm::vec3(0.0, 0.0, -1.0)));
+        // glm::vec3 color = glm::vec3(1.0, 0.0, 0.0);
         // glm::vec3 color = glm::vec3(0.0, 0.0, 1.0) * fabs(glm::dot(normal, glm::vec3(0.0, 0.0, -1.0)));;
 
         // Append it to the list

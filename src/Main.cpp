@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   03/05/2021, 20:45:05
+ *   03/05/2021, 20:48:45
  * Auto updated?
  *   Yes
  *
@@ -273,7 +273,7 @@ int main(int argc, const char** argv) {
         
 
         // Prerender the frame
-        Tools::Array<ECS::RenderEntity*> entities({ ECS::create_sphere({ 0.0, 0.0, -3.0 }, 1.0, 128, 128, { 1.0, 0.0, 0.0 }) });
+        Tools::Array<ECS::RenderEntity*> entities({ ECS::create_sphere({ 0.0, 0.0, -3.0 }, 1.0, 256, 256, { 1.0, 0.0, 0.0 }) });
         renderer->prerender(entities);
         renderer->render(cam);
         delete entities[0];

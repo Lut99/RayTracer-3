@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 15:25:06
  * Last edited:
- *   03/05/2021, 17:43:33
+ *   03/05/2021, 21:17:22
  * Auto updated?
  *   Yes
  *
@@ -59,19 +59,20 @@ glm::vec3 ray_color(const Tools::Array<CVertex>& vertices, const Tools::Array<gl
         // Now, compute the actual point where we hit the plane
         glm::vec3 hitpoint = origin + t * direction;
 
-        // With this point, we can check if the point is within the vertex
-        // Code from: https://gdbooks.gitbooks.io/3dcollisions/content/Chapter4/point_in_triangle.html
-        // First, we move the triangle s.t. the hitpoint become the origin of said triangle
-        p1 -= hitpoint;
-        p2 -= hitpoint;
-        p3 -= hitpoint;
-        // Next, we compute the normals of the triangles spanned by three new triangles that are drawn between the origin and the edges
-        glm::vec3 u = glm::cross(p2, p3);
-        glm::vec3 v = glm::cross(p3, p1);
-        glm::vec3 w = glm::cross(p1, p2);
-        // Then, we can test if they are all facing the same way.
-        if (glm::dot(u, v) >= 0.0 && glm::dot(u, w) >= 0.0) {
-            //It's a hit! Store it as the closest t so far
+        // We can now compute barycentric coordinates from the hitpoint to see if the point is also within the triangle
+        // General idea: https://stackoverflow.com/a/37552406/5270125
+        // First, we compute alpha by finding the area of the triangle spanned by two edges of the triangle and the point we want to find
+        float S = 0.5 * glm::length(glm::cross(p1 - p2, p1 - p3));
+        float alpha = (0.5 * glm::length(glm::cross(p2 - hitpoint, p2 - p3))) / S;
+        float beta = (0.5 * glm::length(glm::cross(hitpoint - p1, hitpoint - p3))) / S;
+        float gamma = (0.5 * glm::length(glm::cross(hitpoint - p1, hitpoint - p2))) / S;
+
+        // With this, we can perform the actual bounds-check
+        if (alpha >= 0 && alpha <= 1 &&
+            beta  >= 0 && beta  <= 1 &&
+            gamma >= 0 && gamma <= 1)
+        {
+            // It's a hit! Store it as the closest t so far
             min_i = i;
             min_t = t;
             continue;
