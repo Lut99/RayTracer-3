@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 11:59:00
  * Last edited:
- *   01/05/2021, 13:31:14
+ *   03/05/2021, 16:54:04
  * Auto updated?
  *   Yes
  *
@@ -16,6 +16,8 @@
 #define ENTITIES_SPHERE_HPP
 
 #include "glm/glm.hpp"
+
+#include "renderer/Vertex.hpp"
 
 #include "RenderEntity.hpp"
 
@@ -32,15 +34,17 @@ namespace RayTracer::ECS {
         uint32_t n_meridians;
         /* The number of parallels in the sphere (i.e., horizontal lines). */
         uint32_t n_parallels;
+        /* The color of the sphere. */
+        glm::vec3 color;
     };
 
 
 
     /* Creates a new Sphere struct based on the given properties. */
-    Sphere* create_sphere(const glm::vec3& center, float radius, uint32_t n_meridians, uint32_t n_parallels);
+    Sphere* create_sphere(const glm::vec3& center, float radius, uint32_t n_meridians, uint32_t n_parallels, const glm::vec3& color);
 
     /* Pre-renders the sphere on the CPU, single-threaded. */
-    void cpu_pre_render_sphere(Tools::Array<uint32_t>& indices, Tools::Array<glm::vec4>& vertices, Tools::Array<glm::vec4>& normals, Tools::Array<glm::vec4>& colors, const Sphere& sphere);
+    void cpu_pre_render_sphere(Tools::Array<Vertex>& vertices, Sphere* sphere);
 
 }
 

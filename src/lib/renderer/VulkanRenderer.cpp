@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   03/05/2021, 16:33:58
+ *   03/05/2021, 16:54:42
  * Auto updated?
  *   Yes
  *
@@ -19,6 +19,7 @@
 #include "compute/ErrorCodes.hpp"
 
 #include "entities/Triangle.hpp"
+#include "entities/Sphere.hpp"
 
 #include "tools/Common.hpp"
 
@@ -213,13 +214,14 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
         } else if (entities[i]->pre_render_mode & EntityPreRenderModeFlags::eprmf_cpu) {
             // Determine the type of pre-rendering operation we need to do
             switch (entities[i]->pre_render_operation) {
-                // case EntityPreRenderOperation::generate_sphere:
-                //     /* Call the generate sphere CPU function. */
-                //     break;
-
                 case EntityPreRenderOperation::epro_generate_triangle:
                     /* Call the generate triangle CPU function. */
                     cpu_pre_render_triangle(vertices, (Triangle*) entities[i]);
+                    break;
+
+                case EntityPreRenderOperation::epro_generate_sphere:
+                    /* Call the generate sphere CPU function. */
+                    cpu_pre_render_sphere(vertices, (Sphere*) entities[i]);
                     break;
 
                 default:

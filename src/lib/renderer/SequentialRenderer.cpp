@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 15:25:06
  * Last edited:
- *   03/05/2021, 16:34:37
+ *   03/05/2021, 17:43:33
  * Auto updated?
  *   Yes
  *
@@ -16,6 +16,7 @@
 #include <CppDebugger.hpp>
 
 #include "entities/Triangle.hpp"
+#include "entities/Sphere.hpp"
 
 #include "SequentialRenderer.hpp"
 
@@ -128,13 +129,14 @@ void SequentialRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entit
         if (entities[i]->pre_render_mode & EntityPreRenderModeFlags::eprmf_cpu) {
             // Determine the type of pre-rendering operation we need to do
             switch (entities[i]->pre_render_operation) {
-                // case EntityPreRenderOperation::generate_sphere:
-                //     /* Call the generate sphere CPU function. */
-                //     break;
-
                 case EntityPreRenderOperation::epro_generate_triangle:
                     /* Call the generate triangle CPU function. */
                     cpu_pre_render_triangle(vertices, (Triangle*) entities[i]);
+                    break;
+
+                case EntityPreRenderOperation::epro_generate_sphere:
+                    /* Call the generate sphere CPU function. */
+                    cpu_pre_render_sphere(vertices, (Sphere*) entities[i]);
                     break;
 
                 default:
@@ -172,6 +174,7 @@ void SequentialRenderer::render(Camera& camera) const {
     DLOG(info, "Rendering...");
     DINDENT;
     uint32_t width = camera.w(), height = camera.h();
+    uint32_t i = 0;
     for (uint32_t y = height - 1; y --> 0 ;) {
         for (uint32_t x = 0; x < width; x++) {
             // Compute the u & v, which is basically the ray's coordinates as a float
@@ -183,6 +186,9 @@ void SequentialRenderer::render(Camera& camera) const {
 
             // Compute the ray's color and store it as a vector
             camera.get_frame().d()[y * width + x] = ray_color(this->entity_cvertices, this->entity_cpoints, camera.origin, ray);
+
+            if (i % 100 == 0) { DLOG(info, "Rendered ray " + std::to_string(i) + "/" + std::to_string(width * height)); }
+            i++;
         }
     }
     DDEDENT;

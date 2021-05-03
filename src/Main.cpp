@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   03/05/2021, 16:28:42
+ *   03/05/2021, 20:01:03
  * Auto updated?
  *   Yes
  *
@@ -18,6 +18,7 @@
 #include "renderer/Renderer.hpp"
 
 #include "entities/Triangle.hpp"
+#include "entities/Sphere.hpp"
 
 #include "camera/Camera.hpp"
 #include "camera/Frame.hpp"
@@ -49,7 +50,7 @@ int main() {
         
 
         // Prerender the frame
-        Tools::Array<ECS::RenderEntity*> entities({ ECS::create_triangle({-1.0, 0.0, -3.0}, {1.0, 0.0, -3.0}, {0.0, 1.0, -3.0}, {1.0, 0.0, 0.0}) });
+        Tools::Array<ECS::RenderEntity*> entities({ ECS::create_sphere({ 0.0, 0.0, -3.0 }, 1.0, 128, 128, { 1.0, 0.0, 0.0 }) });
         renderer->prerender(entities);
         renderer->render(cam);
         delete entities[0];
