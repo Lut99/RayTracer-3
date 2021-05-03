@@ -4,7 +4,7 @@
  * Created:
  *   28/04/2021, 20:08:23
  * Last edited:
- *   02/05/2021, 17:48:53
+ *   03/05/2021, 13:36:45
  * Auto updated?
  *   Yes
  *
@@ -16,13 +16,10 @@
 #include <limits>
 #include <CppDebugger.hpp>
 
-#include "compute/ErrorCodes.hpp"
-
 #include "Camera.hpp"
 
 using namespace std;
 using namespace RayTracer;
-using namespace RayTracer::Compute;
 using namespace CppDebugger::SeverityValues;
 
 

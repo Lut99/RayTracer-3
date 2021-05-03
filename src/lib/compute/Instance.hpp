@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 14:03:39
  * Last edited:
- *   30/04/2021, 14:32:06
+ *   03/05/2021, 13:36:01
  * Auto updated?
  *   Yes
  *
@@ -22,11 +22,11 @@
 
 namespace RayTracer::Compute {
     /* The Vulkan instance extensions we want to be enabled. */
-    static const Tools::Array<const char*> instance_extensions({
+    const Tools::Array<const char*> instance_extensions({
         VK_EXT_DEBUG_UTILS_EXTENSION_NAME
     });
     /* The Vulkan validation layers we want to be enabled. */
-    static const Tools::Array<const char*> debug_layers({
+    const Tools::Array<const char*> debug_layers({
         "VK_LAYER_KHRONOS_validation" 
     });
 
@@ -42,16 +42,26 @@ namespace RayTracer::Compute {
         VkDebugUtilsMessengerEXT vk_debugger;
         /* The function needed to destroy the Vulkan debug messenger. */
         PFN_vkDestroyDebugUtilsMessengerEXT vk_destroy_debug_utils_messenger_method;
+
+        /* The extensions used to create the instance. */
+        Tools::Array<const char*> vk_extensions;
+        /* The layers used to create the instance. */
+        Tools::Array<const char*> vk_layers;
     
     public:
         /* Constructor for the Instance class, which takes a list of extensions to enable at the instance and layers to enable. */
         Instance(const Tools::Array<const char*>& extensions = instance_extensions, const Tools::Array<const char*>& layers = debug_layers);
-        /* Copy constructor for the Instance class, which is deleted. */
+        /* Copy constructor for the Instance class. */
         Instance(const Instance& other);
         /* Move constructor for the Instance class. */
         Instance(Instance&& other);
         /* Destructor for the Instance class. */
         ~Instance();
+
+        /* Allows the Instance to be compared with another Instace class. */
+        inline bool operator==(const Instance& other) const { return this->vk_instance == other.vk_instance; }
+        /* Allows the Instance to be (negated) compared with another Instace class. */
+        inline bool operator!=(const Instance& other) const { return this->vk_instance != other.vk_instance; }
 
         /* Explicitly returns the internal VkInstance object. */
         inline VkInstance instance() const { return this->vk_instance; }
@@ -59,7 +69,7 @@ namespace RayTracer::Compute {
         inline operator VkInstance() const { return this->vk_instance; }
 
         /* Copy assignment operator for the Instance class, which is deleted. */
-        Instance& operator=(const Instance& other) = delete;
+        inline Instance& operator=(const Instance& other) { return *this = Instance(other); };
         /* Move assignment operator for the Instance class. */
         inline Instance& operator=(Instance&& other) { if (this != &other) { swap(*this, other); } return *this; }
         /* Swap operator for the Instance class. */
@@ -69,11 +79,6 @@ namespace RayTracer::Compute {
 
     /* Swap operator for the Instance class. */
     void swap(Instance& i1, Instance& i2);
-
-
-
-    /* Global Vulkan instance. Should be declared elsewhere. */
-    extern const Instance vk_instance;
 }
 
 #endif

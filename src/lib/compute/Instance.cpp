@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 14:03:33
  * Last edited:
- *   30/04/2021, 14:19:20
+ *   03/05/2021, 13:33:26
  * Auto updated?
  *   Yes
  *
@@ -159,7 +159,9 @@ static PFN_vkVoidFunction load_instance_method(VkInstance vk_instance, const cha
 /* Constructor for the Instance class, which takes a list of extensions to enable at the instance and layers to enable. */
 Instance::Instance(const Tools::Array<const char*>& extensions, const Tools::Array<const char*>& layers) :
     vk_debugger(nullptr),
-    vk_destroy_debug_utils_messenger_method(nullptr)
+    vk_destroy_debug_utils_messenger_method(nullptr),
+    vk_extensions(extensions),
+    vk_layers(layers)
 {
     DENTER("Compute::Instance::Instance");
     DLOG(info, "Initializing Vulkan instance...");
@@ -176,7 +178,7 @@ Instance::Instance(const Tools::Array<const char*>& extensions, const Tools::Arr
 
     // Next, setup the list of extensions
     VkInstanceCreateInfo instance_info;
-    populate_instance_info(instance_info, app_info, extensions, layers);
+    populate_instance_info(instance_info, app_info, this->vk_extensions, this->vk_layers);
 
     // Now, setup the instance
     VkResult vk_result;
@@ -187,18 +189,16 @@ Instance::Instance(const Tools::Array<const char*>& extensions, const Tools::Arr
     // If we were successfull, print which extensions
     DINDENT;
     for (size_t i = 0; i < instance_extensions.size(); i++) {
-        DLOG(auxillary, std::string("Enabled extension '") + extensions[i] + "'");
+        DLOG(info, std::string("Enabled extension '") + this->vk_extensions[i] + "'");
     }
     DDEDENT;
-
-    DLOG(info, "")
 
 
 
     /* Next, initialize the debugger - but only if debug is set and the layer is enabled. */
     #ifndef NDEBUG
-    for (size_t i = 0; i < layers.size(); i++) {
-        if (layers[i] == std::string("VK_LAYER_KHRONOS_validation")) {
+    for (size_t i = 0; i < this->vk_layers.size(); i++) {
+        if (this->vk_layers[i] == std::string("VK_LAYER_KHRONOS_validation")) {
             DLOG(info, "Initializing debug logger...");
 
             // First, we load the two extension functions needed using the dynamic loader
@@ -222,8 +222,55 @@ Instance::Instance(const Tools::Array<const char*>& extensions, const Tools::Arr
 
 
 
-
     DDEDENT;
+    DLEAVE;
+}
+
+/* Copy constructor for the Instance class. */
+Instance::Instance(const Instance& other) :
+    vk_debugger(other.vk_debugger),
+    vk_destroy_debug_utils_messenger_method(other.vk_destroy_debug_utils_messenger_method),
+    vk_extensions(other.vk_extensions),
+    vk_layers(other.vk_layers)
+{
+    DENTER("Compute::Instance::Instance(copy)");
+
+    // First, re-create the instance itself by defining the application info again
+    VkApplicationInfo app_info;
+    populate_application_info(app_info);
+
+    // Next, setup the list of extensions
+    VkInstanceCreateInfo instance_info;
+    populate_instance_info(instance_info, app_info, this->vk_extensions, this->vk_layers);
+
+    // Now, setup the instance
+    VkResult vk_result;
+    if ((vk_result = vkCreateInstance(&instance_info, nullptr, &this->vk_instance)) != VK_SUCCESS) {
+        DLOG(fatal, "Could not create the Vulkan instance: " + vk_error_map[vk_result]);
+    }
+
+
+
+    #ifndef NDEBUG
+    // Next, initialize the debugger, but only if the copied object had so as well
+    if (this->vk_debugger != nullptr) {
+        // First, we load the create extension function. The destroy is assumed to be copied from the other Instance.
+        PFN_vkCreateDebugUtilsMessengerEXT vk_create_debug_utils_messenger_method = (PFN_vkCreateDebugUtilsMessengerEXT) load_instance_method(this->vk_instance, "vkCreateDebugUtilsMessengerEXT");
+
+        // Next, define the messenger
+        VkDebugUtilsMessengerCreateInfoEXT debug_info;
+        populate_debug_info(debug_info);
+
+        // And with that, create it
+        if ((vk_result = vk_create_debug_utils_messenger_method(this->vk_instance, &debug_info, nullptr, &this->vk_debugger)) != VK_SUCCESS) {
+            DLOG(fatal, "Could not create the logger: " + vk_error_map[vk_result]);
+        }
+    }
+    #endif
+
+
+
+    // Done
     DLEAVE;
 }
 
@@ -231,7 +278,9 @@ Instance::Instance(const Tools::Array<const char*>& extensions, const Tools::Arr
 Instance::Instance(Instance&& other) :
     vk_instance(other.vk_instance),
     vk_debugger(other.vk_debugger),
-    vk_destroy_debug_utils_messenger_method(other.vk_destroy_debug_utils_messenger_method)
+    vk_destroy_debug_utils_messenger_method(other.vk_destroy_debug_utils_messenger_method),
+    vk_extensions(other.vk_extensions),
+    vk_layers(other.vk_layers)
 {
     // Set everything to nullptrs in the other function to avoid deallocation
     other.vk_instance = nullptr;
@@ -270,6 +319,8 @@ void Compute::swap(Instance& i1, Instance& i2) {
     swap(i1.vk_instance, i2.vk_instance);
     swap(i1.vk_debugger, i2.vk_debugger);
     swap(i1.vk_destroy_debug_utils_messenger_method, i2.vk_destroy_debug_utils_messenger_method);
+    swap(i1.vk_extensions, i2.vk_extensions),
+    swap(i1.vk_layers, i2.vk_layers);
 
     DRETURN;
 }

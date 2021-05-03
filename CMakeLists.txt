@@ -36,6 +36,8 @@ set_target_properties(raytracer
                       RUNTIME_OUTPUT_DIRECTORY_DEBUG ${PROJECT_SOURCE_DIR}/bin
                       RUNTIME_OUTPUT_DIRECTORY_RELEASE ${PROJECT_SOURCE_DIR}/bin
                       )
+# Add extra GCC flags needed
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra")
 
 # Add the include directories for this target
 target_include_directories(raytracer PUBLIC "${INCLUDE_DIRS}")

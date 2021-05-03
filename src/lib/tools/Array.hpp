@@ -82,9 +82,9 @@ namespace Tools {
         const T& at(size_t index) const;
 
         /* Returns a muteable pointer to the internal data struct. Use this to fill the array using C-libraries, but beware that the array needs to have enough space reserved. Also note that object put here will still be deallocated by the Array using ~T(). The optional new_size parameter is used to update the size() value of the array, so it knows what is initialized and what is not. Leave it at numeric_limits<size_t>::max() to leave the array size unchanged. */
-        T* const wdata(size_t new_size = std::numeric_limits<size_t>::max());
+        T* wdata(size_t new_size = std::numeric_limits<size_t>::max());
         /* Returns a constant pointer to the internal data struct. Use this to read from the array using C-libraries, but beware that the array needs to have enough space reserved. */
-        inline const T* const rdata() const { return this->elements; }
+        inline const T* rdata() const { return this->elements; }
         /* Returns true if there are no elements in this array, or false otherwise. */
         inline bool empty() const { return this->length == 0; }
         /* Returns the number of elements stored in this Array. */

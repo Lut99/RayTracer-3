@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:28
  * Last edited:
- *   02/05/2021, 18:12:39
+ *   03/05/2021, 13:26:35
  * Auto updated?
  *   Yes
  *
@@ -27,13 +27,6 @@
 #include "Renderer.hpp"
 
 namespace RayTracer {
-    namespace Compute {
-        /* Global Vulkan instance. */
-        const Compute::Instance vk_instance;
-    }
-
-
-
     /* The VulkanRenderer class, which implements the standard Renderer using Vulkan compute shaders. */
     class VulkanRenderer: public Renderer {
     public:
@@ -47,6 +40,8 @@ namespace RayTracer {
         static const constexpr uint32_t max_descriptor_sets = 2;
 
     private:
+        /* The instance used to select the GPU from. */
+        Compute::Instance* instance;
         /* The GPU on which we work. */
         Compute::GPU* gpu;
 

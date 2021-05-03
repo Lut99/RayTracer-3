@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   02/05/2021, 18:18:47
+ *   03/05/2021, 13:35:26
  * Auto updated?
  *   Yes
  *
@@ -53,8 +53,11 @@ VulkanRenderer::VulkanRenderer() :
     DLOG(info, "Initializing the Vulkan-based renderer...");
     DINDENT;
 
+    // First, create a new instance
+    this->instance = new Instance();
+
     // First, initialize the gpu
-    this->gpu = new GPU();
+    this->gpu = new GPU(*this->instance);
 
     // Before we continue, select suitable memory types for each pool.
     uint32_t device_memory_type = MemoryPool::select_memory_type(*this->gpu, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
@@ -93,6 +96,9 @@ VulkanRenderer::VulkanRenderer(const VulkanRenderer& other) :
 {
     DENTER("VulkanRenderer::VulkanRenderer(copy)");
 
+    // Copy the instance
+    this->instance = new Instance(*other.instance);
+
     // Copy the GPU
     this->gpu = new GPU(*other.gpu);
 
@@ -115,6 +121,7 @@ VulkanRenderer::VulkanRenderer(const VulkanRenderer& other) :
 /* Move constructor for the VulkanRenderer class. */
 VulkanRenderer::VulkanRenderer(VulkanRenderer&& other) :
     Renderer(other),
+    instance(other.instance),
     gpu(other.gpu),
     device_memory_pool(other.device_memory_pool),
     stage_memory_pool(other.stage_memory_pool),
@@ -127,6 +134,7 @@ VulkanRenderer::VulkanRenderer(VulkanRenderer&& other) :
     entity_points(other.entity_points)
 {
     // Set the other's deallocateable pointers to nullptrs to avoid just that
+    other.instance = nullptr;
     other.gpu = nullptr;
     other.device_memory_pool = nullptr;
     other.stage_memory_pool = nullptr;
@@ -164,6 +172,9 @@ VulkanRenderer::~VulkanRenderer() {
 
     if (this->gpu != nullptr) {
         delete this->gpu;
+    }
+    if (this->instance != nullptr) {
+        delete this->instance;
     }
 
     DDEDENT;
@@ -410,6 +421,7 @@ void VulkanRenderer::render(Camera& cam) const {
 void RayTracer::swap(VulkanRenderer& r1, VulkanRenderer& r2) {
     using std::swap;
 
+    swap(r1.instance, r2.instance);
     swap(r1.gpu, r2.gpu);
 
     swap(r1.device_memory_pool, r2.device_memory_pool);

@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   02/05/2021, 18:16:17
+ *   03/05/2021, 13:37:12
  * Auto updated?
  *   Yes
  *
@@ -24,7 +24,6 @@
 
 using namespace std;
 using namespace RayTracer;
-using namespace RayTracer::Compute;
 using namespace CppDebugger::SeverityValues;
 
 

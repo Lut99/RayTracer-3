@@ -281,7 +281,7 @@ template<class T, bool D, bool C, bool M> const T& Array<T, D, C, M>::at(size_t 
 
 
 /* Returns a muteable pointer to the internal data struct. Use this to fill the array using C-libraries, but beware that the array needs to have enough space reserved. Also note that object put here will still be deallocated by the Array using ~T(). The optional new_size parameter is used to update the size() value of the array, so it knows what is initialized and what is not. Leave it at numeric_limits<size_t>::max() to leave the array size unchanged. */
-template<class T, bool D, bool C, bool M> T* const Array<T, D, C, M>::wdata(size_t new_size) {
+template<class T, bool D, bool C, bool M> T* Array<T, D, C, M>::wdata(size_t new_size) {
     // Update the size if it's not the max already
     if (new_size != std::numeric_limits<size_t>::max()) { this->length = new_size; }
     // Return the pointer

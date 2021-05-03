@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:54
  * Last edited:
- *   30/04/2021, 14:32:21
+ *   03/05/2021, 13:35:56
  * Auto updated?
  *   Yes
  *
@@ -25,7 +25,7 @@
 
 namespace RayTracer::Compute {
     /* The Vulkan device extensions we want to be enabled. */
-    static const Tools::Array<const char*> device_extensions({
+    const Tools::Array<const char*> device_extensions({
         // Nothing lmao
     });
 
@@ -71,6 +71,10 @@ namespace RayTracer::Compute {
 
     /* The GPU class, which is the main interface to our Vulkan compute library implementation. */
     class GPU {
+    public:
+        /* Constant reference to the instance where this GPU is declared with. */
+        const Instance& instance;
+
     private:
         /* The physical GPU this class references. */
         VkPhysicalDevice vk_physical_device;
@@ -88,7 +92,7 @@ namespace RayTracer::Compute {
 
     public:
         /* Constructor for the GPU class, which takes a list of required extensions to enable on the GPU. */
-        GPU(const Tools::Array<const char*>& extensions = device_extensions);
+        GPU(const Instance& instance, const Tools::Array<const char*>& extensions = device_extensions);
         /* Copy constructor for the GPU class. */
         GPU(const GPU& other);
         /* Move constructor for the GPU class. */

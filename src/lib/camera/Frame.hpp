@@ -4,7 +4,7 @@
  * Created:
  *   28/04/2021, 14:28:35
  * Last edited:
- *   02/05/2021, 18:09:05
+ *   03/05/2021, 13:36:27
  * Auto updated?
  *   Yes
  *
@@ -19,11 +19,6 @@
 #define CAMERA_FRAME_HPP
 
 #include "glm/glm.hpp"
-#include "compute/GPU.hpp"
-#include "compute/CommandPool.hpp"
-#include "compute/MemoryPool.hpp"
-#include "compute/DescriptorSetLayout.hpp"
-#include "compute/DescriptorPool.hpp"
 
 namespace RayTracer {
     /* The Frame class, which represents a single image to be rendered by the RayTracer. */

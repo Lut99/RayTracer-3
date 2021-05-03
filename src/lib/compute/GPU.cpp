@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:49
  * Last edited:
- *   30/04/2021, 14:30:38
+ *   03/05/2021, 13:25:40
  * Auto updated?
  *   Yes
  *
@@ -241,7 +241,9 @@ DeviceQueueInfo::DeviceQueueInfo(VkPhysicalDevice vk_physical_device)
 
 /***** GPU CLASS *****/
 /* Constructor for the GPU class, which takes a list of required extensions to enable on the GPU. */
-GPU::GPU(const Tools::Array<const char*>& extensions) {
+GPU::GPU(const Instance& instance, const Tools::Array<const char*>& extensions) :
+    instance(instance)
+{
     DENTER("Compute::GPU::GPU");
     DLOG(info, "Initializing GPU object...");
     DINDENT;
@@ -252,7 +254,7 @@ GPU::GPU(const Tools::Array<const char*>& extensions) {
     DLOG(info, "Choosing physical device...");
 
     // Start by selecting a proper one
-    this->vk_physical_device = select_gpu(vk_instance, device_extensions);
+    this->vk_physical_device = select_gpu(this->instance, device_extensions);
 
     // Next, get some of its properties, like the name & queue info
     vkGetPhysicalDeviceProperties(this->vk_physical_device, &this->vk_physical_device_properties);
@@ -303,6 +305,7 @@ GPU::GPU(const Tools::Array<const char*>& extensions) {
 
 /* Copy constructor for the GPU class. */
 GPU::GPU(const GPU& other) :
+    instance(other.instance),
     vk_physical_device(other.vk_physical_device),
     vk_physical_device_properties(other.vk_physical_device_properties),
     vk_physical_device_queue_info(other.vk_physical_device_queue_info)
@@ -340,6 +343,7 @@ GPU::GPU(const GPU& other) :
 
 /* Move constructor for the GPU class. */
 GPU::GPU(GPU&& other) :
+    instance(other.instance),
     vk_physical_device(other.vk_physical_device),
     vk_physical_device_properties(other.vk_physical_device_properties),
     vk_physical_device_queue_info(other.vk_physical_device_queue_info),
@@ -373,6 +377,15 @@ GPU::~GPU() {
 
 /* Swap operator for the GPU class. */
 void Compute::swap(GPU& g1, GPU& g2) {
+    DENTER("Compute::swap(GPU)");
+
+    #ifndef NDEBUG
+    // Check if the instances are actually the same
+    if (g1.instance != g2.instance) {
+        DLOG(fatal, "Cannot swap gpus with different instances");
+    }
+    #endif
+
     // Swap all operators
     using std::swap;
     swap(g1.vk_physical_device, g2.vk_physical_device);
@@ -380,4 +393,7 @@ void Compute::swap(GPU& g1, GPU& g2) {
     swap(g1.vk_physical_device_queue_info, g2.vk_physical_device_queue_info);
     swap(g1.vk_device, g2.vk_device);
     swap(g1.vk_compute_queue, g2.vk_compute_queue);
+
+    // Done
+    DRETURN;
 }
