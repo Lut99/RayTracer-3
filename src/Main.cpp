@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   03/05/2021, 13:37:12
+ *   03/05/2021, 16:28:42
  * Auto updated?
  *   Yes
  *
@@ -49,7 +49,7 @@ int main() {
         
 
         // Prerender the frame
-        Tools::Array<ECS::RenderEntity*> entities({ ECS::create_triangle({-1.0, 0.0, 3.0}, {1.0, 0.0, 3.0}, {0.0, 1.0, 3.0}, {0.0, 0.0, -1.0}, {1.0, 1.0, 1.0}) });
+        Tools::Array<ECS::RenderEntity*> entities({ ECS::create_triangle({-1.0, 0.0, -3.0}, {1.0, 0.0, -3.0}, {0.0, 1.0, -3.0}, {1.0, 0.0, 0.0}) });
         renderer->prerender(entities);
         renderer->render(cam);
         delete entities[0];
@@ -64,6 +64,7 @@ int main() {
 
         // Dope, done
         DLOG(auxillary, "");
+        delete renderer;
     } catch (CppDebugger::Fatal& e) {
         // Simply quit
         DRETURN -1;

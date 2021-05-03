@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   03/05/2021, 13:54:32
+ *   03/05/2021, 14:52:09
  * Auto updated?
  *   Yes
  *
@@ -487,7 +487,7 @@ void MemoryPool::deallocate(BufferHandle buffer) {
 
                 if (free_m1_start + free_m1_length == buffer_start && buffer_start + buffer_length == free_start) {
                     // The buffer happens to precisely fill the gap between two blocks; merge all memory into one free block
-                    this->vk_free_blocks[i - 1].length += free_length;
+                    this->vk_free_blocks[i - 1].length += buffer_length + free_length;
                     this->vk_free_blocks.erase(i);
                     inserted = true;
                 } else if (free_m1_start + free_m1_length == buffer_start) {
@@ -508,10 +508,12 @@ void MemoryPool::deallocate(BufferHandle buffer) {
             // If not yet inserted, then we want to add a new free block
             if (!inserted) {
                 // Not mergeable; insert a new block by moving all blocks to the right
-                this->vk_free_blocks.push_back(this->vk_free_blocks[this->vk_free_blocks.size() - 1]);
+                this->vk_free_blocks.resize(this->vk_free_blocks.size() + 1);
                 for (size_t j = i; j < this->vk_free_blocks.size() - 1; j++) {
                     this->vk_free_blocks[j + 1] = this->vk_free_blocks[j];
                 }
+
+                // With space created, insert it
                 this->vk_free_blocks[i] = MemoryPool::FreeBlock({ buffer_start, buffer_length });
                 inserted = true;
             }

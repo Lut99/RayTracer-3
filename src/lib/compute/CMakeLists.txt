@@ -1,3 +1,5 @@
+if(RENDERER_BACKEND MATCHES "^Vulkan$")
+
 # Specify the libraries in this directory
 add_library(Compute STATIC ${CMAKE_CURRENT_SOURCE_DIR}/Instance.cpp ${CMAKE_CURRENT_SOURCE_DIR}/GPU.cpp ${CMAKE_CURRENT_SOURCE_DIR}/MemoryPool.cpp ${CMAKE_CURRENT_SOURCE_DIR}/DescriptorSetLayout.cpp ${CMAKE_CURRENT_SOURCE_DIR}/DescriptorPool.cpp ${CMAKE_CURRENT_SOURCE_DIR}/CommandPool.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Pipeline.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Shader.cpp)
 
@@ -10,3 +12,5 @@ list(APPEND EXTRA_LIBS Compute)
 
 # Carry the list to the parent scope
 set(EXTRA_LIBS "${EXTRA_LIBS}" PARENT_SCOPE)
+
+endif()

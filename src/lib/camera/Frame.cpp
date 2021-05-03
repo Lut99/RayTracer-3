@@ -4,7 +4,7 @@
  * Created:
  *   28/04/2021, 14:28:32
  * Last edited:
- *   03/05/2021, 13:36:49
+ *   03/05/2021, 15:15:32
  * Auto updated?
  *   Yes
  *
@@ -33,7 +33,7 @@ using namespace CppDebugger::SeverityValues;
 /***** FRAME CLASS *****/
 /* Constructor for the Frame class, which takes the dimension of the frame. */
 Frame::Frame(uint32_t width, uint32_t height) :
-    data(new glm::vec3[this->width * this->height]),
+    data(new glm::vec3[width * height]),
     width(width),
     height(height)
 {}

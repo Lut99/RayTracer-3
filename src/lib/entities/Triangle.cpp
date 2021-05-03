@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 13:35:10
  * Last edited:
- *   03/05/2021, 13:44:20
+ *   03/05/2021, 16:00:14
  * Auto updated?
  *   Yes
  *
@@ -25,7 +25,7 @@ using namespace CppDebugger::SeverityValues;
 
 /***** SPHERE FUNCTIONS *****/
 /* Creates a new Triangle struct based on the given properties. */
-Triangle* ECS::create_triangle(const glm::vec3& p1, const glm::vec3& p2, const glm::vec3& p3, const glm::vec3& normal, const glm::vec3& color) {
+Triangle* ECS::create_triangle(const glm::vec3& p1, const glm::vec3& p2, const glm::vec3& p3, const glm::vec3& color) {
     DENTER("ECS::create_triangle");
 
     // Allocate the struct
@@ -42,7 +42,7 @@ Triangle* ECS::create_triangle(const glm::vec3& p1, const glm::vec3& p2, const g
     result->points[2] = p3;
 
     // Set the normal & color
-    result->normal = normal;
+    result->normal = glm::normalize(glm::cross(p3 - p1, p2 - p1));
     result->color = color;
 
     // Done, return it
@@ -54,6 +54,7 @@ Triangle* ECS::create_triangle(const glm::vec3& p1, const glm::vec3& p2, const g
 /* Pre-renders the sphere on the CPU, single-threaded. */
 void ECS::cpu_pre_render_triangle(Tools::Array<Vertex>& vertices, Triangle* triangle) {
     DENTER("ECS::cpu_pre_render_triangle");
+    DLOG(info, "Pre-rendering triangle...");
 
     // We set one vertex
     vertices = {{

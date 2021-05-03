@@ -23,7 +23,6 @@ SET(INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/src/lib" "${Vulkan_INCLUDE_DIRS}")
 
 # Load the libraries
 add_subdirectory(src)
-message("${EXTRA_LIBS}")
 
 
 

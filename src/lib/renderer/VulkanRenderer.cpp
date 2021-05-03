@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   03/05/2021, 13:57:12
+ *   03/05/2021, 16:33:58
  * Auto updated?
  *   Yes
  *
@@ -90,9 +90,7 @@ VulkanRenderer::VulkanRenderer() :
 
 /* Copy constructor for the VulkanRenderer class. */
 VulkanRenderer::VulkanRenderer(const VulkanRenderer& other) :
-    Renderer(other),
-    entity_vertices(other.entity_vertices),
-    entity_points(other.entity_points)
+    Renderer(other)
 {
     DENTER("VulkanRenderer::VulkanRenderer(copy)");
 
@@ -129,9 +127,7 @@ VulkanRenderer::VulkanRenderer(VulkanRenderer&& other) :
     compute_command_pool(other.compute_command_pool),
     memory_command_pool(other.memory_command_pool),
     raytrace_dsl(other.raytrace_dsl),
-    staging_cb_h(other.staging_cb_h),
-    entity_vertices(other.entity_vertices),
-    entity_points(other.entity_points)
+    staging_cb_h(other.staging_cb_h)
 {
     // Set the other's deallocateable pointers to nullptrs to avoid just that
     other.instance = nullptr;
@@ -186,10 +182,12 @@ VulkanRenderer::~VulkanRenderer() {
 /* Pre-renders the given list of RenderEntities, accelerated using Vulkan compute shaders. */
 void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities) {
     DENTER("VulkanRenderer::prerender");
+    DLOG(info, "Pre-rendering entities...");
+    DINDENT;
 
     // We start by throwing out any old vertices we might have
-    this->entity_vertices.clear();
-    this->entity_points.clear();
+    this->entity_gvertices.clear();
+    this->entity_gpoints.clear();
 
     // Prepare the buffers for the per-entity vertices
     Tools::Array<Vertex> vertices;
@@ -208,7 +206,7 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
                 //     break;
 
                 default:
-                    DLOG(fatal, "Entity " + std::to_string(i) + " wants to be pre-rendered on the CPU using unsupported operation '" + entity_pre_render_operation_names[entities[i]->pre_render_operation] + "'.");
+                    DLOG(fatal, "Entity " + std::to_string(i) + " wants to be pre-rendered on the GPU using unsupported operation '" + entity_pre_render_operation_names[entities[i]->pre_render_operation] + "'.");
 
             }
 
@@ -225,7 +223,7 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
                     break;
 
                 default:
-                    DLOG(fatal, "Entity " + std::to_string(i) + " wants to be pre-rendered on the GPU using unsupported operation '" + entity_pre_render_operation_names[entities[i]->pre_render_operation] + "'.");
+                    DLOG(fatal, "Entity " + std::to_string(i) + " wants to be pre-rendered on the CPU using unsupported operation '" + entity_pre_render_operation_names[entities[i]->pre_render_operation] + "'.");
 
             }
 
@@ -233,40 +231,12 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
             DLOG(fatal, "Entity " + std::to_string(i) + " of type " + entity_type_names[entities[i]->type] + " with the Vulkan compute shader back-end.");
         }
 
-        // Regardless of how we pre-rendered, we can now condense the resulting arrays in indexed equivalents
-        for (size_t i = 0; i < vertices.size(); i++) {
-            // For each of the points, see if there are existing entries for them
-            uint32_t indices[] = { numeric_limits<uint32_t>::max(), numeric_limits<uint32_t>::max(), numeric_limits<uint32_t>::max() };
-            for (size_t lp = 0; lp < 3; lp++) {
-                // Get a vec4-equivalent of the correct point
-                glm::vec4 point = glm::vec4(vertices[i].points[lp], 0.0);
-
-                // Search the point list to see if it indeed exists
-                for (size_t gp= 0; gp < this->entity_points.size(); gp++) {
-                    if (this->entity_points[gp] == point) {
-                        // It does; store this index
-                        indices[lp] = static_cast<uint32_t>(gp);
-                        break;
-                    }
-                }
-
-                // If it does not, append it instead
-                if (indices[lp] == numeric_limits<uint32_t>::max()) {
-                    indices[lp] = this->entity_points.size();
-                    this->entity_points.push_back(point);
-                }
-            }
-
-            // Now, we have enough to create a new GVertex
-            this->entity_vertices.push_back({
-                indices[0], indices[1], indices[2],
-                glm::vec4(vertices[i].normal, 0.0),
-                glm::vec4(vertices[i].color, 0.0)
-            });
-        }
+        // With the list prepared, insert it into the grand list of vertices
+        this->insert_gvertices(this->entity_gvertices, this->entity_gpoints, vertices);
     }
 
     // We're done! We pre-rendered all objects!
+    DDEDENT;
     DRETURN;
 }
 
@@ -274,10 +244,21 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
 void VulkanRenderer::render(Camera& cam) const {
     DENTER("VulkanRenderer::render");
 
+    // Print some info
+    DLOG(info, "Rendering for camera:");
+    DINDENT;
+    DLOG(auxillary, "Camera origin            : (" + std::to_string(cam.origin.x) + "," + std::to_string(cam.origin.y) + "," + std::to_string(cam.origin.z) + ")");
+    DLOG(auxillary, "Camera horizontal        : (" + std::to_string(cam.horizontal.x) + "," + std::to_string(cam.horizontal.y) + "," + std::to_string(cam.horizontal.z) + ")");
+    DLOG(auxillary, "Camera vertical          : (" + std::to_string(cam.vertical.x) + "," + std::to_string(cam.vertical.y) + "," + std::to_string(cam.vertical.z) + ")");
+    DLOG(auxillary, "Camera lower_left_corner : (" + std::to_string(cam.lower_left_corner.x) + "," + std::to_string(cam.lower_left_corner.y) + "," + std::to_string(cam.lower_left_corner.z) + ")");
+    DDEDENT;
+
     /* Step 1: Buffer initialization. */
+    DLOG(info, "Transferring vertices & points to GPU...");
+    
     // We begin by allocating the buffers required for the main data
-    size_t vertices_size = this->entity_vertices.size() * sizeof(GVertex);
-    size_t points_size = this->entity_points.size() * sizeof(glm::vec4);
+    size_t vertices_size = this->entity_gvertices.size() * sizeof(GVertex);
+    size_t points_size = this->entity_gpoints.size() * sizeof(glm::vec4);
     BufferHandle vertices_h = this->device_memory_pool->allocate(vertices_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     BufferHandle points_h = this->device_memory_pool->allocate(points_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     Buffer vertices = (*this->device_memory_pool)[vertices_h];
@@ -292,13 +273,13 @@ void VulkanRenderer::render(Camera& cam) const {
     // Next, fill the vertex staging buffer
     void* mapped_area;
     vertices_staging.map(*this->gpu, &mapped_area);
-    memcpy(mapped_area, (void*) this->entity_vertices.rdata(), vertices_size);
+    memcpy(mapped_area, (void*) this->entity_gvertices.rdata(), vertices_size);
     vertices_staging.flush(*this->gpu);
     vertices_staging.unmap(*this->gpu);
 
     // Then do the points
     points_staging.map(*this->gpu, &mapped_area);
-    memcpy(mapped_area, (void*) this->entity_points.rdata(), points_size);
+    memcpy(mapped_area, (void*) this->entity_gpoints.rdata(), points_size);
     points_staging.flush(*this->gpu);
     points_staging.unmap(*this->gpu);
 
@@ -314,12 +295,14 @@ void VulkanRenderer::render(Camera& cam) const {
 
 
     /* Step 2: Camera buffer initialization. */
+    DLOG(info, "Transferring camera to GPU...");
+    
     // First, allocate buffers for the frame and the camera data
     uint32_t width = cam.w(), height = cam.h();
     size_t camera_size = sizeof(GCameraData);
     size_t frame_size = width * height * sizeof(glm::vec4);
     BufferHandle camera_h = this->device_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    BufferHandle frame_h = this->device_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    BufferHandle frame_h = this->device_memory_pool->allocate(frame_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
     Buffer camera = (*this->device_memory_pool)[camera_h];
     Buffer frame = (*this->device_memory_pool)[frame_h];
 
@@ -350,6 +333,7 @@ void VulkanRenderer::render(Camera& cam) const {
 
 
     /* Step 3: Descriptor set initialization. */
+    DLOG(info, "Creating descriptor set...");
     // Allocate a DescriptorSet & set all bindings
     DescriptorSet descriptor_set = this->descriptor_pool->allocate(*this->raytrace_dsl);
     descriptor_set.set(*this->gpu, 0, Tools::Array<Buffer>({ frame }));
@@ -360,15 +344,20 @@ void VulkanRenderer::render(Camera& cam) const {
 
 
     /* Step 4: Render the frame. */
+    DLOG(info, "Preparing pipeline...");
+    
     // Initialize a new pipeline using the new layout
+    DINDENT;
     Pipeline pipeline(
         *this->gpu,
         Shader(*this->gpu, Tools::get_executable_path() + "/shaders/raytracer_v1.spv"),
         Tools::Array<DescriptorSetLayout>({ *this->raytrace_dsl }),
         std::unordered_map<uint32_t, std::tuple<uint32_t, void*>>({ { 0, std::make_tuple(sizeof(uint32_t), (void*) &width) }, { 1, std::make_tuple(sizeof(uint32_t), (void*) &height) } })
     );
+    DDEDENT;
 
     // Next, start recording the compute command buffer
+    DLOG(info, "Recording command buffer...");
     CommandBufferHandle cb_compute_h = this->compute_command_pool->allocate();
     CommandBuffer cb_compute = (*this->compute_command_pool)[cb_compute_h];
     cb_compute.begin();
@@ -378,6 +367,7 @@ void VulkanRenderer::render(Camera& cam) const {
     cb_compute.end();
 
     // With the buffer recorded, submit it to the given queue
+    DLOG(info, "Rendering...");
     VkResult vk_result;
     VkSubmitInfo submit_info = cb_compute.get_submit_info();
     if ((vk_result = vkQueueSubmit(this->gpu->compute_queue(), 1, &submit_info, VK_NULL_HANDLE)) != VK_SUCCESS) {
@@ -392,6 +382,8 @@ void VulkanRenderer::render(Camera& cam) const {
 
 
     /* Step 4: Frame retrieval. */
+    DLOG(info, "Retrieving frame...");
+    
     // Get a staging buffer for the frame
     BufferHandle frame_staging_h = this->stage_memory_pool->allocate(frame_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     Buffer frame_staging = (*this->stage_memory_pool)[frame_staging_h];
@@ -399,10 +391,36 @@ void VulkanRenderer::render(Camera& cam) const {
     // Copy the contents of the frame buffer back to the staging buffer
     frame.copyto(this->gpu->memory_queue(), staging_cb, frame_staging);
 
-    // Next, map the staging buffer's memory to host-accessible memory and copy the frame data back to the CPU
+    // Next, map the staging buffer's memory to host-accessible memory
     void* frame_staging_map;
     frame_staging.map(*this->gpu, &frame_staging_map);
-    memcpy((void*) cam.get_frame().d(), frame_staging_map, frame_size);
+
+    // Copy the vectors manually, to convert from vec4 to vec3
+    for (uint32_t p = 0; p < width * height; p++) {
+        cam.get_frame().d()[p] = ((glm::vec4*) frame_staging_map)[p];
+        // if (p == 0) {
+        //     printf("Shader reports number of vertices: %f\n", ((glm::vec4*) frame_staging_map)[p].x);
+        //     printf("First point: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z, ((glm::vec4*) frame_staging_map)[p].w);
+        // } else if (p == 1) {
+        //     printf("Second point: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
+        // } else if (p == 2) {
+        //     printf("Third point: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
+        // } else if (p == 3) {
+        //     printf("Normal: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
+        // } else if (p == 4) {
+        //     printf("Color: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
+        // } else if (p == 5) {
+        //     printf("Camera origin: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
+        // } else if (p == 6) {
+        //     printf("Camera horizontal: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
+        // } else if (p == 7) {
+        //     printf("Camera vertical: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
+        // } else if (p == 8) {
+        //     printf("Camera lower left corner: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
+        // }
+    }
+   
+    // When done, flush and unmap
     frame_staging.flush(*this->gpu);
     frame_staging.unmap(*this->gpu);
 
@@ -412,6 +430,8 @@ void VulkanRenderer::render(Camera& cam) const {
 
 
     /* Step 5: Cleanup. */
+    DLOG(info, "Finishing up...");
+
     // Cleanup the command buffer
     this->compute_command_pool->deallocate(cb_compute_h);
 
@@ -434,6 +454,9 @@ void VulkanRenderer::render(Camera& cam) const {
 void RayTracer::swap(VulkanRenderer& r1, VulkanRenderer& r2) {
     using std::swap;
 
+    // Swap as renderer first
+    swap((Renderer&) r1, (Renderer&) r2);
+
     swap(r1.instance, r2.instance);
     swap(r1.gpu, r2.gpu);
 
@@ -446,9 +469,7 @@ void RayTracer::swap(VulkanRenderer& r1, VulkanRenderer& r2) {
     swap(r1.raytrace_dsl, r2.raytrace_dsl);
     swap(r1.staging_cb_h, r2.staging_cb_h);
 
-    swap(r1.entity_vertices, r2.entity_vertices);
-    swap(r1.entity_points, r2.entity_points);
-
+    // Done
 }
 
 

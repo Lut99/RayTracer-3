@@ -4,7 +4,7 @@
  * Created:
  *   02/05/2021, 17:12:29
  * Last edited:
- *   02/05/2021, 17:39:38
+ *   03/05/2021, 14:55:17
  * Auto updated?
  *   Yes
  *
@@ -58,13 +58,15 @@ std::string Tools::get_executable_path() {
     ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
 
     // Strip the executable from it to only get the directory
-    const char *path;
-    if (count != -1) {
-        path = dirname(result);
+    for (ssize_t i = count - 1; i >= 0; i--) {
+        if (result[i] == '/') {
+            result[i] = '\0';
+            break;
+        }
     }
 
     // Done, return
-    DRETURN path;
+    DRETURN result;
 
     #endif
 }

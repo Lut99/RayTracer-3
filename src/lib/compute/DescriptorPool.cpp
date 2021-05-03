@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:38:48
  * Last edited:
- *   02/05/2021, 17:04:50
+ *   03/05/2021, 15:07:17
  * Auto updated?
  *   Yes
  *
@@ -377,6 +377,9 @@ void DescriptorPool::deallocate(const DescriptorSet& descriptor_set) {
                 DLOG(fatal, "Could not free descriptor set: " + vk_error_map[vk_result]);
             }
 
+            // Erase it from the list
+            this->vk_descriptor_sets.erase(i);
+
             // Done
             DRETURN;
         }
@@ -398,6 +401,11 @@ void DescriptorPool::ndeallocate(const Tools::Array<DescriptorSet>& descriptor_s
             if (this->vk_descriptor_sets[j] == descriptor_sets[i].vk_descriptor_set) {
                 // Mark it for deallocation
                 to_free.push_back(descriptor_sets[i]);
+
+                // Remove it from the list
+                this->vk_descriptor_sets.erase(i);
+
+                // Done
                 break;
             }
         }

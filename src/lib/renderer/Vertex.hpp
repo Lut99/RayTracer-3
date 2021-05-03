@@ -4,7 +4,7 @@
  * Created:
  *   02/05/2021, 15:45:39
  * Last edited:
- *   02/05/2021, 16:16:47
+ *   03/05/2021, 15:48:00
  * Auto updated?
  *   Yes
  *
@@ -31,14 +31,29 @@ namespace RayTracer {
         glm::vec3 color;
     };
 
+    /* The CPU-compatible & point-indexed Vertex counterpart, the CVertex struct. */
+    struct CVertex {
+        /* The first point of the vertex. */
+        uint32_t p1;
+        /* The second point of the vertex. */
+        uint32_t p2;
+        /* The third point of the vertex. */
+        uint32_t p3;
+
+        /* The normal of the vertex. */
+        glm::vec3 normal;
+        /* The color of the vertex. */
+        glm::vec3 color;
+    };
+
     /* The GPU-compatible & point-indexed Vertex counterpart, the GVertex struct. */
     struct GVertex {
         /* The first point of the vertex. */
-        alignas(4) uint32_t point1;
+        alignas(4) uint32_t p1;
         /* The second point of the vertex. */
-        alignas(4) uint32_t point2;
+        alignas(4) uint32_t p2;
         /* The third point of the vertex. */
-        alignas(4) uint32_t point3;
+        alignas(4) uint32_t p3;
 
         /* The normal of the vertex. */
         alignas(16) glm::vec4 normal;
