@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   02/05/2021, 16:41:11
+ *   03/05/2021, 13:54:32
  * Auto updated?
  *   Yes
  *
@@ -73,10 +73,9 @@ void populate_memory_range(VkMappedMemoryRange& memory_range, VkDeviceMemory vk_
     // Tell it the memory and which part of the device memory is used
     memory_range.memory = vk_memory;
     memory_range.offset = vk_memory_offset;
-    
-    // Set the number of bytes mapped
     memory_range.size = vk_memory_size;
 
+    // Done, return
     DRETURN;
 }
 

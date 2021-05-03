@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:28
  * Last edited:
- *   03/05/2021, 13:26:35
+ *   03/05/2021, 13:57:49
  * Auto updated?
  *   Yes
  *
@@ -35,9 +35,9 @@ namespace RayTracer {
         /* Constant that determines the pool size of the transfer memory. */
         static const constexpr VkDeviceSize stage_memory_size = 1024 * 1024 * 1024;
         /* The maximum number of descriptors per set in the desriptor pool. */
-        static const constexpr uint32_t max_descriptors = 2;
+        static const constexpr uint32_t max_descriptors = 4;
         /* The maximum number of descriptor sets in the desriptor pool. */
-        static const constexpr uint32_t max_descriptor_sets = 2;
+        static const constexpr uint32_t max_descriptor_sets = 1;
 
     private:
         /* The instance used to select the GPU from. */

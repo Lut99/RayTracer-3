@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 13:35:10
  * Last edited:
- *   02/05/2021, 18:13:43
+ *   03/05/2021, 13:44:20
  * Auto updated?
  *   Yes
  *
@@ -30,6 +30,11 @@ Triangle* ECS::create_triangle(const glm::vec3& p1, const glm::vec3& p2, const g
 
     // Allocate the struct
     Triangle* result = new Triangle;
+
+    // Set the RenderEntity fields
+    result->type = EntityType::et_triangle;
+    result->pre_render_mode = EntityPreRenderModeFlags::eprmf_cpu;
+    result->pre_render_operation = EntityPreRenderOperation::epro_generate_triangle;
 
     // Set all points
     result->points[0] = p1;

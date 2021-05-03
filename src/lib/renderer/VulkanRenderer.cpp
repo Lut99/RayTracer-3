@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   03/05/2021, 13:35:26
+ *   03/05/2021, 13:57:12
  * Auto updated?
  *   Yes
  *
@@ -289,20 +289,22 @@ void VulkanRenderer::render(Camera& cam) const {
     Buffer vertices_staging = (*this->stage_memory_pool)[vertices_staging_h];
     Buffer points_staging = (*this->stage_memory_pool)[points_staging_h];
 
-    // Map each of the staging buffers and copy their respective memory over
-    void *vertices_staging_map, *points_staging_map;
-    vertices_staging.map(*this->gpu, &vertices_staging_map);
-    points_staging.map(*this->gpu, &points_staging_map);
-    memcpy(vertices_staging_map, (void*) this->entity_vertices.rdata(), vertices_size);
-    memcpy(points_staging_map, (void*) this->entity_points.rdata(), points_size);
+    // Next, fill the vertex staging buffer
+    void* mapped_area;
+    vertices_staging.map(*this->gpu, &mapped_area);
+    memcpy(mapped_area, (void*) this->entity_vertices.rdata(), vertices_size);
     vertices_staging.flush(*this->gpu);
-    points_staging.flush(*this->gpu);
     vertices_staging.unmap(*this->gpu);
+
+    // Then do the points
+    points_staging.map(*this->gpu, &mapped_area);
+    memcpy(mapped_area, (void*) this->entity_points.rdata(), points_size);
+    points_staging.flush(*this->gpu);
     points_staging.unmap(*this->gpu);
 
     // Next, we schedule the copies of the staging buffers to the real buffers
     CommandBuffer staging_cb = (*this->memory_command_pool)[this->staging_cb_h];
-    vertices_staging.copyto(this->gpu->memory_queue(), staging_cb, vertices, false);
+    vertices_staging.copyto(this->gpu->memory_queue(), staging_cb, vertices, true);
     points_staging.copyto(this->gpu->memory_queue(), staging_cb, points, true);
 
     // Once that's done, deallocate the staging buffers
@@ -317,42 +319,33 @@ void VulkanRenderer::render(Camera& cam) const {
     size_t camera_size = sizeof(GCameraData);
     size_t frame_size = width * height * sizeof(glm::vec4);
     BufferHandle camera_h = this->device_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    BufferHandle frame_h = this->device_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    BufferHandle frame_h = this->device_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
     Buffer camera = (*this->device_memory_pool)[camera_h];
     Buffer frame = (*this->device_memory_pool)[frame_h];
 
-    // Next, get two staging buffers for these two fellas
+    // Next, get a staging buffer for the camera only
     BufferHandle camera_staging_h = this->stage_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    BufferHandle frame_staging_h = this->stage_memory_pool->allocate(frame_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
     Buffer camera_staging = (*this->stage_memory_pool)[camera_staging_h];
-    Buffer frame_staging = (*this->stage_memory_pool)[frame_staging_h];
 
-    // Map each of the two staging buffers to host-reachable memory
-    void *camera_staging_map, *frame_staging_map;
+    // Map the staging buffer to host-reachable memory
+    void* camera_staging_map;
     camera_staging.map(*this->gpu, &camera_staging_map);
-    frame_staging.map(*this->gpu, &frame_staging_map);
 
-    // Populate the data. For the camera this is rather manual...
+    // Populate the data. For the camera this is rather manual
     ((GCameraData*) camera_staging_map)->origin = cam.origin;
     ((GCameraData*) camera_staging_map)->horizontal = cam.horizontal;
     ((GCameraData*) camera_staging_map)->vertical = cam.vertical;
     ((GCameraData*) camera_staging_map)->lower_left_corner = cam.lower_left_corner;
-    // ...while this is just another copy for the frame.
-    memcpy(frame_staging_map, (void*) cam.get_frame().d(), frame_size);
 
-    // Flush & unmap the staging buffers
+    // Flush & unmap the staging buffer
     camera_staging.flush(*this->gpu);
-    frame_staging.flush(*this->gpu);
     camera_staging.unmap(*this->gpu);
-    frame_staging.unmap(*this->gpu);
 
-    // Next, we schedule the copies of the staging buffers to the real buffers
-    camera_staging.copyto(this->gpu->memory_queue(), staging_cb, camera, false);
-    frame_staging.copyto(this->gpu->memory_queue(), staging_cb, frame, true);
+    // Next, we schedule the copies of the staging buffer to the real buffer
+    camera_staging.copyto(this->gpu->memory_queue(), staging_cb, camera);
 
-    // Once that's done, deallocate the staging buffers
+    // Once that's done, deallocate the staging buffer for the camera.
     this->stage_memory_pool->deallocate(camera_staging_h);
-    this->stage_memory_pool->deallocate(frame_staging_h);
 
 
 
@@ -398,7 +391,27 @@ void VulkanRenderer::render(Camera& cam) const {
 
 
 
-    /* Step 4: Cleanup. */
+    /* Step 4: Frame retrieval. */
+    // Get a staging buffer for the frame
+    BufferHandle frame_staging_h = this->stage_memory_pool->allocate(frame_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    Buffer frame_staging = (*this->stage_memory_pool)[frame_staging_h];
+
+    // Copy the contents of the frame buffer back to the staging buffer
+    frame.copyto(this->gpu->memory_queue(), staging_cb, frame_staging);
+
+    // Next, map the staging buffer's memory to host-accessible memory and copy the frame data back to the CPU
+    void* frame_staging_map;
+    frame_staging.map(*this->gpu, &frame_staging_map);
+    memcpy((void*) cam.get_frame().d(), frame_staging_map, frame_size);
+    frame_staging.flush(*this->gpu);
+    frame_staging.unmap(*this->gpu);
+
+    // Once we're done, we can clean the frame staging buffer
+    this->stage_memory_pool->deallocate(frame_staging_h);
+    
+
+
+    /* Step 5: Cleanup. */
     // Cleanup the command buffer
     this->compute_command_pool->deallocate(cb_compute_h);
 
