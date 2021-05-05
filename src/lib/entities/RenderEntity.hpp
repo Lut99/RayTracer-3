@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:08:59
  * Last edited:
- *   02/05/2021, 17:38:30
+ *   05/05/2021, 17:18:20
  * Auto updated?
  *   Yes
  *
@@ -72,7 +72,7 @@ namespace RayTracer::ECS {
         EntityType type;
 
         /* How the entity needs to be pre-rendered. */
-        EntityPreRenderModeFlags pre_render_mode;
+        unsigned int pre_render_mode;
         /* The pre-rendering operation that needs to happen for this entity. */
         EntityPreRenderOperation pre_render_operation;
 

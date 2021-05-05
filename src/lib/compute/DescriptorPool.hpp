@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:39:16
  * Last edited:
- *   02/05/2021, 17:36:23
+ *   05/05/2021, 17:56:47
  * Auto updated?
  *   Yes
  *
@@ -41,7 +41,7 @@ namespace RayTracer::Compute {
 
     public:
         /* Binds this descriptor set with the contents of a given buffer to the given bind index. */
-        void set(const GPU& gpu, uint32_t bind_index, const Tools::Array<Buffer>& buffers) const;
+        void set(const GPU& gpu, VkDescriptorType descriptor_type, uint32_t bind_index, const Tools::Array<Buffer>& buffers) const;
         /* Binds the descriptor to the given (compute) command buffer. We assume that the recording already started. */
         void bind(const CommandBuffer& buffer, VkPipelineLayout pipeline_layout) const;
 
@@ -63,12 +63,10 @@ namespace RayTracer::Compute {
     private:
         /* The internal pool used for allocating new pools. */
         VkDescriptorPool vk_descriptor_pool;
-        /* Type of descriptors that can be allocated here. */
-        VkDescriptorType vk_descriptor_type;
+        /* Type of descriptors that can be allocated here and how many per type. */
+        Tools::Array<std::tuple<VkDescriptorType, uint32_t>> vk_descriptor_types;
         /* The maximum number of sets allowed in this pool. */
         uint32_t vk_max_sets;
-        /* The maximum number of descriptors allowed per set in this pool. */
-        uint32_t vk_max_descriptors;
         /* The create flags used to initialize this pool. */
         VkDescriptorPoolCreateFlags vk_create_flags;
 
@@ -76,8 +74,10 @@ namespace RayTracer::Compute {
         Tools::Array<VkDescriptorSet> vk_descriptor_sets;
 
     public:
-        /* Constructor for the DescriptorPool class, which takes the GPU to create the pool on, the number of descriptors we want to allocate in the pool, the maximum number of descriptor sets that can be allocated and optionally custom create flags. */
-        DescriptorPool(const GPU& gpu, VkDescriptorType descriptor_type, uint32_t n_descriptors, uint32_t max_sets, VkDescriptorPoolCreateFlags flags = 0);
+        /* Constructor for the DescriptorPool class, which takes the GPU to create the pool on, the type of descriptors, the number of descriptors we want to allocate in the pool, the maximum number of descriptor sets that can be allocated and optionally custom create flags. */
+        DescriptorPool(const GPU& gpu, VkDescriptorType descriptor_type, uint32_t max_descriptors, uint32_t max_sets, VkDescriptorPoolCreateFlags flags = 0);
+        /* Constructor for the DescriptorPool class, which takes the GPU to create the pool on, a list of descriptor types and their counts, the maximum number of descriptor sets that can be allocated and optionally custom create flags. */
+        DescriptorPool(const GPU& gpu, const Tools::Array<std::tuple<VkDescriptorType, uint32_t>>& descriptor_types, uint32_t max_sets, VkDescriptorPoolCreateFlags flags = 0);
         /* Copy constructor for the DescriptorPool. */
         DescriptorPool(const DescriptorPool& other);
         /* Move constructor for the DescriptorPool. */

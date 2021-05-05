@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:38:48
  * Last edited:
- *   03/05/2021, 15:07:17
+ *   05/05/2021, 17:56:34
  * Auto updated?
  *   Yes
  *
@@ -44,7 +44,7 @@ static void populate_buffer_info(VkDescriptorBufferInfo& buffer_info, const Buff
 }
 
 /* Populates a given VkWriteDescriptorSet struct. */
-static void populate_write_info(VkWriteDescriptorSet& write_info, VkDescriptorSet vk_descriptor_set, uint32_t bind_index, const Tools::Array<VkDescriptorBufferInfo>& buffer_infos) {
+static void populate_write_info(VkWriteDescriptorSet& write_info, VkDescriptorSet vk_descriptor_set, VkDescriptorType vk_descriptor_type, uint32_t bind_index, const Tools::Array<VkDescriptorBufferInfo>& buffer_infos) {
     DENTER("populate_write_info");
 
     // Set to default
@@ -62,7 +62,7 @@ static void populate_write_info(VkWriteDescriptorSet& write_info, VkDescriptorSe
 
     // Next, set which type of descriptor this is and how many
     write_info.descriptorCount = static_cast<uint32_t>(buffer_infos.size());
-    write_info.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    write_info.descriptorType = vk_descriptor_type;
 
     // Then, the data to pass. This can be of multiple forms, but we pass a buffer.
     write_info.pBufferInfo = buffer_infos.rdata();
@@ -74,20 +74,20 @@ static void populate_write_info(VkWriteDescriptorSet& write_info, VkDescriptorSe
 }
 
 /* Populates a given VkDescriptorPoolSize struct. */
-static void populate_descriptor_pool_size(VkDescriptorPoolSize& descriptor_pool_size, VkDescriptorType descriptor_type, uint32_t n_descriptors) {
+static void populate_descriptor_pool_size(VkDescriptorPoolSize& descriptor_pool_size, const std::tuple<VkDescriptorType, uint32_t>& descriptor_type) {
     DENTER("populate_descriptor_pool_size");
 
     // Initialize to default
     descriptor_pool_size = {};
-    descriptor_pool_size.type = descriptor_type;
-    descriptor_pool_size.descriptorCount = n_descriptors;
+    descriptor_pool_size.type = std::get<0>(descriptor_type);
+    descriptor_pool_size.descriptorCount = std::get<1>(descriptor_type);
 
     // Done;
     DRETURN;
 }
 
 /* Populates a given VkDescriptorPoolCreateInfo struct. */
-static void populate_descriptor_pool_info(VkDescriptorPoolCreateInfo& descriptor_pool_info, const VkDescriptorPoolSize& descriptor_pool_size, uint32_t n_sets, VkDescriptorPoolCreateFlags descriptor_pool_flags) {
+static void populate_descriptor_pool_info(VkDescriptorPoolCreateInfo& descriptor_pool_info, const Tools::Array<VkDescriptorPoolSize>& descriptor_pool_sizes, uint32_t n_sets, VkDescriptorPoolCreateFlags descriptor_pool_flags) {
     DENTER("populate_descriptor_pool_info");
 
     // Initialize to default
@@ -95,8 +95,8 @@ static void populate_descriptor_pool_info(VkDescriptorPoolCreateInfo& descriptor
     descriptor_pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 
     // Set the pool size to use
-    descriptor_pool_info.poolSizeCount = 1;
-    descriptor_pool_info.pPoolSizes = &descriptor_pool_size;
+    descriptor_pool_info.poolSizeCount = static_cast<uint32_t>(descriptor_pool_sizes.size());
+    descriptor_pool_info.pPoolSizes = descriptor_pool_sizes.rdata();
 
     // Set the maximum number of sets allowed
     descriptor_pool_info.maxSets = n_sets;
@@ -140,7 +140,7 @@ DescriptorSet::DescriptorSet(VkDescriptorSet descriptor_set) :
 {}
 
 /* Binds this descriptor set with the contents of a given buffer to the given bind index. Must be enough buffers to actually populate all bindings of the given type. */
-void DescriptorSet::set(const GPU& gpu, uint32_t bind_index, const Tools::Array<Buffer>& buffers) const {
+void DescriptorSet::set(const GPU& gpu, VkDescriptorType descriptor_type, uint32_t bind_index, const Tools::Array<Buffer>& buffers) const {
     DENTER("Compute::DescriptorSet::set");
 
     // We first create a list of buffer infos
@@ -157,7 +157,7 @@ void DescriptorSet::set(const GPU& gpu, uint32_t bind_index, const Tools::Array<
     // Next, generate a VkWriteDescriptorSet with which we populate the buffer information
     // Can also use copies, for descriptor-to-descriptor stuff.
     VkWriteDescriptorSet write_info;
-    populate_write_info(write_info, this->vk_descriptor_set, bind_index, buffer_infos);
+    populate_write_info(write_info, this->vk_descriptor_set, descriptor_type, bind_index, buffer_infos);
 
     // With the write info populated, update this set. Note that this can be used to perform multiple descriptor write & copies simultaneously
     vkUpdateDescriptorSets(gpu, 1, &write_info, 0, nullptr);
@@ -182,11 +182,10 @@ void DescriptorSet::bind(const CommandBuffer& buffer, VkPipelineLayout pipeline_
 
 /***** DESCRIPTORPOOL CLASS *****/
 /* Constructor for the DescriptorPool class, which takes the GPU to create the pool on, the number of descriptors we want to allocate in the pool, the maximum number of descriptor sets that can be allocated and optionally custom create flags. */
-DescriptorPool::DescriptorPool(const GPU& gpu, VkDescriptorType descriptor_type, uint32_t n_descriptors, uint32_t max_sets, VkDescriptorPoolCreateFlags flags):
+DescriptorPool::DescriptorPool(const GPU& gpu, VkDescriptorType descriptor_type, uint32_t max_descriptors, uint32_t max_sets, VkDescriptorPoolCreateFlags flags):
     gpu(gpu),
-    vk_descriptor_type(descriptor_type),
+    vk_descriptor_types(Tools::Array<std::tuple<VkDescriptorType, uint32_t>>({ std::make_tuple(descriptor_type, max_descriptors) })),
     vk_max_sets(max_sets),
-    vk_max_descriptors(n_descriptors),
     vk_create_flags(flags),
     vk_descriptor_sets(max_sets)
 {
@@ -199,11 +198,52 @@ DescriptorPool::DescriptorPool(const GPU& gpu, VkDescriptorType descriptor_type,
     // First, we define how large the pool will be
     DLOG(info, "Preparing structs...");
     VkDescriptorPoolSize descriptor_pool_size;
-    populate_descriptor_pool_size(descriptor_pool_size, this->vk_descriptor_type, this->vk_max_descriptors);
+    populate_descriptor_pool_size(descriptor_pool_size, this->vk_descriptor_types[0]);
 
     // Prepare the create info
     VkDescriptorPoolCreateInfo descriptor_pool_info;
-    populate_descriptor_pool_info(descriptor_pool_info, descriptor_pool_size, this->vk_max_sets, this->vk_create_flags);
+    populate_descriptor_pool_info(descriptor_pool_info, Tools::Array<VkDescriptorPoolSize>({ descriptor_pool_size }), this->vk_max_sets, this->vk_create_flags);
+
+
+
+    // Actually allocate the pool
+    DLOG(info, "Allocating pool...");
+    VkResult vk_result;
+    if ((vk_result = vkCreateDescriptorPool(this->gpu, &descriptor_pool_info, nullptr, &this->vk_descriptor_pool)) != VK_SUCCESS) {
+        DLOG(fatal, "Could not allocate descriptor pool: " + vk_error_map[vk_result]);
+    }
+
+
+
+    DDEDENT;
+    DLEAVE;
+}
+
+/* Constructor for the DescriptorPool class, which takes the GPU to create the pool on, a list of descriptor types and their counts, the maximum number of descriptor sets that can be allocated and optionally custom create flags. */
+DescriptorPool::DescriptorPool(const GPU& gpu, const Tools::Array<std::tuple<VkDescriptorType, uint32_t>>& descriptor_types, uint32_t max_sets, VkDescriptorPoolCreateFlags flags) :
+    gpu(gpu),
+    vk_descriptor_types(descriptor_types),
+    vk_max_sets(max_sets),
+    vk_create_flags(flags),
+    vk_descriptor_sets(max_sets)
+{
+    DENTER("Compute::DescriptorPool::DescriptorPool(multiple types)");
+    DLOG(info, "Initializing DescriptorPool for multiple types...");
+    DINDENT;
+
+
+
+    // First, we define how large the pool will be
+    DLOG(info, "Preparing structs...");
+    Tools::Array<VkDescriptorPoolSize> descriptor_pool_sizes;
+    descriptor_pool_sizes.resize(this->vk_descriptor_types.size());
+    for (size_t i = 0; i < this->vk_descriptor_types.size(); i++) {
+        populate_descriptor_pool_size(descriptor_pool_sizes[i], this->vk_descriptor_types[i]);
+    }
+
+    // Prepare the create info
+    VkDescriptorPoolCreateInfo descriptor_pool_info;
+    populate_descriptor_pool_info(descriptor_pool_info, descriptor_pool_sizes, this->vk_max_sets, this->vk_create_flags);
 
 
 
@@ -223,21 +263,23 @@ DescriptorPool::DescriptorPool(const GPU& gpu, VkDescriptorType descriptor_type,
 /* Copy constructor for the DescriptorPool. */
 DescriptorPool::DescriptorPool(const DescriptorPool& other) :
     gpu(other.gpu),
-    vk_descriptor_type(other.vk_descriptor_type),
+    vk_descriptor_types(other.vk_descriptor_types),
     vk_max_sets(other.vk_max_sets),
-    vk_max_descriptors(other.vk_max_descriptors),
     vk_create_flags(other.vk_create_flags),
     vk_descriptor_sets(other.vk_max_sets)
 {
     DENTER("Compute::DescriptorPool::DescriptorPool(copy)");
 
     // First, we define how large the pool will be
-    VkDescriptorPoolSize descriptor_pool_size;
-    populate_descriptor_pool_size(descriptor_pool_size, this->vk_descriptor_type, this->vk_max_descriptors);
+    Tools::Array<VkDescriptorPoolSize> descriptor_pool_sizes;
+    descriptor_pool_sizes.resize(this->vk_descriptor_types.size());
+    for (size_t i = 0; i < this->vk_descriptor_types.size(); i++) {
+        populate_descriptor_pool_size(descriptor_pool_sizes[i], this->vk_descriptor_types[0]);
+    }
 
     // Prepare the create info
     VkDescriptorPoolCreateInfo descriptor_pool_info;
-    populate_descriptor_pool_info(descriptor_pool_info, descriptor_pool_size, this->vk_max_sets, this->vk_create_flags);
+    populate_descriptor_pool_info(descriptor_pool_info, descriptor_pool_sizes, this->vk_max_sets, this->vk_create_flags);
 
     // Actually allocate the pool
     VkResult vk_result;
@@ -254,9 +296,8 @@ DescriptorPool::DescriptorPool(const DescriptorPool& other) :
 DescriptorPool::DescriptorPool(DescriptorPool&& other):
     gpu(other.gpu),
     vk_descriptor_pool(other.vk_descriptor_pool),
-    vk_descriptor_type(other.vk_descriptor_type),
+    vk_descriptor_types(other.vk_descriptor_types),
     vk_max_sets(other.vk_max_sets),
-    vk_max_descriptors(other.vk_max_descriptors),
     vk_create_flags(other.vk_create_flags),
     vk_descriptor_sets(other.vk_descriptor_sets)
 {
@@ -443,9 +484,8 @@ void Compute::swap(DescriptorPool& dp1, DescriptorPool& dp2) {
 
     // Swap all fields
     swap(dp1.vk_descriptor_pool, dp2.vk_descriptor_pool);
-    swap(dp1.vk_descriptor_type, dp2.vk_descriptor_type);
+    swap(dp1.vk_descriptor_types, dp2.vk_descriptor_types);
     swap(dp1.vk_max_sets, dp2.vk_max_sets);
-    swap(dp1.vk_max_descriptors, dp2.vk_max_descriptors);
     swap(dp1.vk_create_flags, dp2.vk_create_flags);
     swap(dp1.vk_descriptor_sets, dp2.vk_descriptor_sets);
 

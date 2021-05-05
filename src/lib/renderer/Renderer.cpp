@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:17:35
  * Last edited:
- *   03/05/2021, 17:33:33
+ *   05/05/2021, 18:02:38
  * Auto updated?
  *   Yes
  *
@@ -24,6 +24,15 @@
 using namespace std;
 using namespace RayTracer;
 using namespace CppDebugger::SeverityValues;
+
+
+/***** MACROS *****/
+/* Shortcut for getting the i'th point in the vertex. */
+#define VERTEX_POINT(VERTEX, I) \
+    ((I) == 0 ? (VERTEX).p1 : ((I) == 1 ? (VERTEX).p2 : (VERTEX).p3))
+
+
+
 
 
 /***** HELPER FUNCTIONS *****/
@@ -60,20 +69,16 @@ Renderer::Renderer() {
 
 /* Copy constructor for the Renderer baseclass. */
 Renderer::Renderer(const Renderer& other) :
-    entity_cvertices(other.entity_cvertices),
-    entity_cpoints(other.entity_cpoints),
-    entity_gvertices(other.entity_gvertices),
-    entity_gpoints(other.entity_gpoints)
+    entity_vertices(other.entity_vertices),
+    entity_points(other.entity_points)
 {
     /* Does nothing */
 }
 
 /* Move constructor for the Renderer baseclass. */
 Renderer::Renderer(Renderer&& other) :
-    entity_cvertices(other.entity_cvertices),
-    entity_cpoints(other.entity_cpoints),
-    entity_gvertices(other.entity_gvertices),
-    entity_gpoints(other.entity_gpoints)
+    entity_vertices(other.entity_vertices),
+    entity_points(other.entity_points)
 {
     /* Does nothing */
 }
@@ -85,77 +90,23 @@ Renderer::~Renderer() {
 
 
 
-/* Given a list of vertices pre-rendered from an entity, injects them into the list of points and indexed list of CVertices. */
-void Renderer::insert_cvertices(Tools::Array<CVertex>& cvertices, Tools::Array<glm::vec3>& points, const Array<Vertex>& vertices) {
-    DENTER("Renderer::insert_cvertices");
-
-    // Define an unordered map, which we use to more quickly recognize if a vertex exists or not
-    std::unordered_map<glm::vec3, uint32_t> point_map;
-
-    // Regardless of how we pre-rendered, we can now condense the resulting arrays in indexed equivalents
-    point_map.reserve(vertices.size());
-    cvertices.reserve(cvertices.size() + vertices.size());
-    points.reserve(points.size() + vertices.size());
-    for (size_t i = 0; i < vertices.size(); i++) {
-        // For each of the points, see if there are existing entries for them
-        uint32_t indices[] = { numeric_limits<uint32_t>::max(), numeric_limits<uint32_t>::max(), numeric_limits<uint32_t>::max() };
-        for (size_t lp = 0; lp < 3; lp++) {
-            // Get a reference to the correct point
-            const glm::vec3& point = vertices[i].points[lp];
-
-            // Search the point list to see if it indeed exists
-            std::unordered_map<glm::vec3, uint32_t>::iterator iter = point_map.find(point);
-            if (iter != point_map.end()) {
-                indices[lp] = (*iter).second;
-            }
-
-            // If it does not, append it instead
-            if (indices[lp] == numeric_limits<uint32_t>::max()) {
-                indices[lp] = points.size();
-                points.push_back(point);
-                // Also update the point map
-                point_map.insert(std::make_pair(point, indices[lp]));
-            }
-        }
-
-        // Now, we have enough to create a new GVertex
-        cvertices.push_back({
-            indices[0], indices[1], indices[2],
-            vertices[i].normal,
-            vertices[i].color
-        });
-
-        if (i % 100 == 0) {
-            DLOG(info, "Examined vertex " + std::to_string(i + 1) + "/" + std::to_string(vertices.size()));
-            DINDENT;
-            DLOG(auxillary, "Current vertices length : " + std::to_string(cvertices.size()));
-            DLOG(auxillary, "Current points length   : " + std::to_string(points.size()));
-            DLOG(auxillary, "Current map size        : " + std::to_string(point_map.size()));
-            DDEDENT;
-        }
-    }
-
-    // Done
-    DRETURN;
-}
-
-/* Given a list of vertices pre-rendered from an entity, injects them into the list of points and indexed list of GVertices. */
-void Renderer::insert_gvertices(Tools::Array<GVertex>& gvertices, Tools::Array<glm::vec4>& points, const Array<Vertex>& vertices) {
+/* Given a list of vertices pre-rendered from an entity, injects them into the list of points and indexed list of Vertices. */
+void Renderer::insert_vertices(Tools::Array<GVertex>& vertices, Tools::Array<glm::vec4>& points, const Array<Vertex>& new_vertices) {
     DENTER("Renderer::insert_cvertices");
 
     // Define an unordered map, which we use to more quickly recognize if a vertex exists or not
     std::unordered_map<glm::vec4, uint32_t> point_map;
 
     // Regardless of how we pre-rendered, we can now condense the resulting arrays in indexed equivalents
-    point_map.reserve(vertices.size());
-    gvertices.reserve(gvertices.size() + vertices.size());
-    points.reserve(points.size() + vertices.size());
-    for (size_t i = 0; i < vertices.size(); i++) {
+    point_map.reserve(new_vertices.size());
+    vertices.reserve(vertices.size() + new_vertices.size());
+    points.reserve(points.size() + new_vertices.size());
+    for (size_t i = 0; i < new_vertices.size(); i++) {
         // For each of the points, see if there are existing entries for them
         uint32_t indices[] = { numeric_limits<uint32_t>::max(), numeric_limits<uint32_t>::max(), numeric_limits<uint32_t>::max() };
         for (size_t lp = 0; lp < 3; lp++) {
             // Get a vec4 equivalent of the correct point
-            glm::vec4 point = glm::vec4(vertices[i].points[lp], 0.0);
+            glm::vec4 point = glm::vec4(VERTEX_POINT(new_vertices[i], lp), 0.0);
 
             // Search the point list to see if it indeed exists
             std::unordered_map<glm::vec4, uint32_t>::iterator iter = point_map.find(point);
@@ -173,20 +124,20 @@ void Renderer::insert_gvertices(Tools::Array<GVertex>& gvertices, Tools::Array<g
         }
 
         // Now, we have enough to create a new GVertex
-        gvertices.push_back({
+        vertices.push_back({
             indices[0], indices[1], indices[2],
-            glm::vec4(vertices[i].normal, 0.0),
-            glm::vec4(vertices[i].color, 0.0)
+            new_vertices[i].normal,
+            new_vertices[i].color
         });
 
-        if (i % 100 == 0) {
-            DLOG(info, "Examined vertex " + std::to_string(i + 1) + "/" + std::to_string(vertices.size()));
-            DINDENT;
-            DLOG(auxillary, "Current vertices length : " + std::to_string(gvertices.size()));
-            DLOG(auxillary, "Current points length   : " + std::to_string(points.size()));
-            DLOG(auxillary, "Current map size        : " + std::to_string(point_map.size()));
-            DDEDENT;
-        }
+        // if (i % 100 == 0) {
+        //     DLOG(info, "Examined vertex " + std::to_string(i + 1) + "/" + std::to_string(new_vertices.size()));
+        //     DINDENT;
+        //     DLOG(auxillary, "Current vertices length : " + std::to_string(vertices.size()));
+        //     DLOG(auxillary, "Current points length   : " + std::to_string(points.size()));
+        //     DLOG(auxillary, "Current map size        : " + std::to_string(point_map.size()));
+        //     DDEDENT;
+        // }
     }
 
     // Done
@@ -199,8 +150,6 @@ void Renderer::insert_gvertices(Tools::Array<GVertex>& gvertices, Tools::Array<g
 void RayTracer::swap(Renderer& r1, Renderer& r2) {
     using std::swap;
 
-    swap(r1.entity_cvertices, r2.entity_cvertices);
-    swap(r1.entity_cpoints, r2.entity_cpoints);
-    swap(r1.entity_gvertices, r2.entity_gvertices);
-    swap(r1.entity_gpoints, r2.entity_gpoints);
+    swap(r1.entity_vertices, r2.entity_vertices);
+    swap(r1.entity_points, r2.entity_points);
 }

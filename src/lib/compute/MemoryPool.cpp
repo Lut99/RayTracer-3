@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   03/05/2021, 14:52:09
+ *   05/05/2021, 18:13:39
  * Auto updated?
  *   Yes
  *
@@ -97,6 +97,51 @@ Buffer::Buffer(VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemor
 
 
 
+/* Sets n_bytes data to this buffer using an intermediate staging buffer. The staging buffer is copied using the given command buffer on the given queue. */
+void Buffer::set(const GPU& gpu, const Buffer& staging_buffer, const CommandBuffer& command_buffer, VkQueue vk_queue, void* data, uint32_t n_bytes) const {
+    DENTER("Compute::Buffer::set");
+
+    // First, map the staging buffer to an CPU-reachable area
+    void* mapped_area;
+    staging_buffer.map(gpu, &mapped_area);
+
+    // Next, copy the data to the buffer
+    memcpy(mapped_area, data, n_bytes);
+
+    // Flush and then unmap the staging buffer
+    staging_buffer.flush(gpu);
+    staging_buffer.unmap(gpu);
+
+    // Use the command buffer to copy the data around
+    staging_buffer.copyto(command_buffer, vk_queue, *this, (VkDeviceSize) n_bytes);
+
+    // Done
+    DRETURN;
+}
+
+/* Gets n_bytes data from this buffer using an intermediate staging buffer. The buffers are copied over using the given command buffer on the given queue. The result is put in the given pointer. */
+void Buffer::get(const GPU& gpu, const Buffer& staging_buffer, const CommandBuffer& command_buffer, VkQueue vk_queue, void* data, uint32_t n_bytes) const {
+    DENTER("Compute::Buffer::set");
+
+    // First, copy the data we have to the staging buffer
+    this->copyto(command_buffer, vk_queue, staging_buffer, (VkDeviceSize) n_bytes);
+
+    // Then, map the staging buffer to an CPU-reachable area
+    void* mapped_area;
+    staging_buffer.map(gpu, &mapped_area);
+
+    // Next, copy the data to a user-defined location
+    memcpy(data, mapped_area, n_bytes);
+
+    // Unmap the staging buffer. No need to flush cuz we didn't change anything
+    staging_buffer.unmap(gpu);
+
+    // Done
+    DRETURN;
+}
+
+
+
 /* Maps the buffer to host-memory so it can be written to. Only possible if the VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT is set for the memory of this buffer's pool. Note that the memory is NOT automatically unmapped if the Buffer object is destroyed. */
 void  Buffer::map(const GPU& gpu, void** mapped_memory) const {
     DENTER("Compute::Buffer::map");
@@ -152,12 +197,17 @@ void  Buffer::unmap(const GPU& gpu) const {
 
 
 /* Copies this buffer's content to another given buffer. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Note that the given buffer needn't come from the same memory pool. */
-void Buffer::copyto(VkQueue vk_queue, CommandBuffer& command_buffer, const Buffer& destination, bool wait_queue_idle) const {
+void Buffer::copyto(const CommandBuffer& command_buffer, VkQueue vk_queue, const Buffer& destination, VkDeviceSize n_bytes, bool wait_queue_idle) const {
     DENTER("Compute::Buffer::copyto");
 
+    // If the number of bytes to transfer is the max, default to the buffer size
+    if (n_bytes == numeric_limits<VkDeviceSize>::max()) {
+        n_bytes = this->vk_memory_size;
+    }
+
     // First, check if the destination buffer is large enough
-    if (destination.vk_memory_size < this->vk_memory_size) {
-        DLOG(fatal, "Cannot copy " + std::to_string(this->vk_memory_size) + " bytes to buffer of only " + std::to_string(destination.vk_memory_size) + " bytes.");
+    if (destination.vk_memory_size < n_bytes) {
+        DLOG(fatal, "Cannot copy " + std::to_string(n_bytes) + " bytes to buffer of only " + std::to_string(destination.vk_memory_size) + " bytes.");
     }
 
     // Next, make sure they have the required flags
@@ -175,7 +225,7 @@ void Buffer::copyto(VkQueue vk_queue, CommandBuffer& command_buffer, const Buffe
     VkBufferCopy copy_region{};
     copy_region.srcOffset = 0;
     copy_region.dstOffset = 0;
-    copy_region.size = this->vk_memory_size;
+    copy_region.size = n_bytes;
     vkCmdCopyBuffer(command_buffer, this->vk_buffer, destination.vk_buffer, 1, &copy_region);
 
     // Since that's all, submit the queue. Note that we only return once the copy is 

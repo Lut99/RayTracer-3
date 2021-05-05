@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:21:29
  * Last edited:
- *   03/05/2021, 15:50:58
+ *   05/05/2021, 15:23:16
  * Auto updated?
  *   Yes
  *
@@ -33,22 +33,16 @@ namespace RayTracer {
     /* The Renderer baseclass, which can be used to render a list of RenderEntities to a frame. Derived classes can determine if the renderer uses Vulkan, CUDA, the CPU, w/e. */
     class Renderer {
     protected:
-        /* The pre-rendered list of (CPU-optimised) vertices, which we can send to the GPU. */
-        Tools::Array<CVertex> entity_cvertices;
-        /* The pre-rendered list of (CPU-optimised) points referred to by the vertices, which we can send to the GPU. */
-        Tools::Array<glm::vec3> entity_cpoints;
         /* The pre-rendered list of (GPU-optimised) vertices, which we can send to the GPU. */
-        Tools::Array<GVertex> entity_gvertices;
+        Tools::Array<GVertex> entity_vertices;
         /* The pre-rendered list of (GPU-optimised) points referred to by the vertices, which we can send to the GPU. */
-        Tools::Array<glm::vec4> entity_gpoints;
+        Tools::Array<glm::vec4> entity_points;
         
         /* Protected constructor for the Renderer Baseclass, which is used by derived classes to initialize the base elements. */
         Renderer();
 
-        /* Given a list of vertices pre-rendered from an entity, injects them into the list of points and indexed list of CVertices. */
-        static void insert_cvertices(Tools::Array<CVertex>& gvertices, Tools::Array<glm::vec3>& points, const Array<Vertex>& vertices);
-        /* Given a list of vertices pre-rendered from an entity, injects them into the list of points and indexed list of GVertices. */
-        static void insert_gvertices(Tools::Array<GVertex>& gvertices, Tools::Array<glm::vec4>& points, const Array<Vertex>& vertices);
+        /* Given a list of vertices pre-rendered from an entity, injects them into the list of points and indexed list of Vertices. */
+        static void insert_vertices(Tools::Array<GVertex>& vertices, Tools::Array<glm::vec4>& points, const Array<Vertex>& new_vertices);
 
     public:
         /* Copy constructor for the Renderer baseclass. */

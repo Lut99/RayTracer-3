@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:49
  * Last edited:
- *   03/05/2021, 13:25:40
+ *   05/05/2021, 17:36:15
  * Auto updated?
  *   Yes
  *
@@ -242,7 +242,8 @@ DeviceQueueInfo::DeviceQueueInfo(VkPhysicalDevice vk_physical_device)
 /***** GPU CLASS *****/
 /* Constructor for the GPU class, which takes a list of required extensions to enable on the GPU. */
 GPU::GPU(const Instance& instance, const Tools::Array<const char*>& extensions) :
-    instance(instance)
+    instance(instance),
+    vk_extensions(extensions)
 {
     DENTER("Compute::GPU::GPU");
     DLOG(info, "Initializing GPU object...");
@@ -254,7 +255,7 @@ GPU::GPU(const Instance& instance, const Tools::Array<const char*>& extensions) 
     DLOG(info, "Choosing physical device...");
 
     // Start by selecting a proper one
-    this->vk_physical_device = select_gpu(this->instance, device_extensions);
+    this->vk_physical_device = select_gpu(this->instance, this->vk_extensions);
 
     // Next, get some of its properties, like the name & queue info
     vkGetPhysicalDeviceProperties(this->vk_physical_device, &this->vk_physical_device_properties);
@@ -279,7 +280,7 @@ GPU::GPU(const Instance& instance, const Tools::Array<const char*>& extensions) 
 
     // Then, use the queue indices and the features to populate the create info for the device itself
     VkDeviceCreateInfo device_info;
-    populate_device_info(device_info, queue_infos, device_features, device_extensions);
+    populate_device_info(device_info, queue_infos, device_features, this->vk_extensions);
 
     // With the device info ready, create it
     VkResult vk_result;
@@ -308,7 +309,8 @@ GPU::GPU(const GPU& other) :
     instance(other.instance),
     vk_physical_device(other.vk_physical_device),
     vk_physical_device_properties(other.vk_physical_device_properties),
-    vk_physical_device_queue_info(other.vk_physical_device_queue_info)
+    vk_physical_device_queue_info(other.vk_physical_device_queue_info),
+    vk_extensions(other.vk_extensions)
 {
     DENTER("Compute::GPU::GPU(copy)");
 
@@ -324,7 +326,7 @@ GPU::GPU(const GPU& other) :
 
     // Then, use the queue indices and the features to populate the create info for the device itself
     VkDeviceCreateInfo device_info;
-    populate_device_info(device_info, queue_infos, device_features, device_extensions);
+    populate_device_info(device_info, queue_infos, device_features, this->vk_extensions);
 
     // With the device info ready, create it
     VkResult vk_result;
@@ -348,7 +350,9 @@ GPU::GPU(GPU&& other) :
     vk_physical_device_properties(other.vk_physical_device_properties),
     vk_physical_device_queue_info(other.vk_physical_device_queue_info),
     vk_device(other.vk_device),
-    vk_compute_queue(other.vk_compute_queue)
+    vk_compute_queue(other.vk_compute_queue),
+    vk_memory_queue(other.vk_memory_queue),
+    vk_extensions(other.vk_extensions)
 {
     // Set the device to a nullptr so the now useless object doesn't destruct it
     other.vk_device = nullptr;
@@ -393,6 +397,8 @@ void Compute::swap(GPU& g1, GPU& g2) {
     swap(g1.vk_physical_device_queue_info, g2.vk_physical_device_queue_info);
     swap(g1.vk_device, g2.vk_device);
     swap(g1.vk_compute_queue, g2.vk_compute_queue);
+    swap(g1.vk_memory_queue, g2.vk_memory_queue);
+    swap(g1.vk_extensions, g2.vk_extensions);
 
     // Done
     DRETURN;

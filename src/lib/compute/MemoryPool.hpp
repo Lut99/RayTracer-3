@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:35
  * Last edited:
- *   02/05/2021, 16:41:07
+ *   05/05/2021, 17:42:07
  * Auto updated?
  *   Yes
  *
@@ -55,6 +55,11 @@ namespace RayTracer::Compute {
         friend class MemoryPool;
 
     public:
+        /* Sets the buffer using an intermediate staging buffer. The staging buffer is copied using the given command buffer on the given queue. */
+        void set(const GPU& gpu, const Buffer& staging_buffer, const CommandBuffer& command_buffer, VkQueue vk_queue, void* data, uint32_t n_bytes) const;
+        /* Gets n_bytes data from this buffer using an intermediate staging buffer. The buffers are copied over using the given command buffer on the given queue. The result is put in the given pointer. */
+        void get(const GPU& gpu, const Buffer& staging_buffer, const CommandBuffer& command_buffer, VkQueue vk_queue, void* data, uint32_t n_bytes) const;
+
         /* Maps the buffer to host-memory so it can be written to. Only possible if the VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT is set for the memory of this buffer's pool. Note that the memory is NOT automatically unmapped if the Buffer object is destroyed. */
         void map(const GPU& gpu, void** mapped_memory) const;
         /* Flushes all unflushed memory operations done on mapped memory. If the memory of this buffer has VK_MEMORY_PROPERTY_HOST_COHERENT_BIT set, then nothing is done as the memory is already automatically flushed. */
@@ -63,7 +68,9 @@ namespace RayTracer::Compute {
         void unmap(const GPU& gpu) const;
 
         /* Copies this buffer's content to another given buffer on the given memory-enabled GPU queue. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Optionally waits until the queue is idle before returning. Note that the given buffer needn't come from the same memory pool. */
-        void copyto(VkQueue vk_queue, CommandBuffer& command_buffer, const Buffer& destination, bool wait_queue_idle = true) const;
+        inline void copyto(const CommandBuffer& command_buffer, VkQueue vk_queue, const Buffer& destination, bool wait_queue_idle = true) const { return copyto(command_buffer, vk_queue, destination, std::numeric_limits<VkDeviceSize>::max(), wait_queue_idle); }
+        /* Copies this buffer's content to another given buffer on the given memory-enabled GPU queue. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Optionally waits until the queue is idle before returning. Note that the given buffer needn't come from the same memory pool. */
+        void copyto(const CommandBuffer& command_buffer, VkQueue vk_queue, const Buffer& destination, VkDeviceSize n_bytes, bool wait_queue_idle = true) const;
 
         /* Returns the size of the buffer, in bytes. */
         inline VkDeviceSize size() const { return this->vk_memory_size; }

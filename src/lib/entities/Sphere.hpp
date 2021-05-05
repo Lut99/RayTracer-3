@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 11:59:00
  * Last edited:
- *   03/05/2021, 16:54:04
+ *   05/05/2021, 17:29:59
  * Auto updated?
  *   Yes
  *
@@ -22,6 +22,15 @@
 #include "RenderEntity.hpp"
 
 #include "tools/Array.hpp"
+
+#ifdef ENABLE_VULKAN
+#include <vulkan/vulkan.h>
+
+#include "compute/GPU.hpp"
+#include "compute/MemoryPool.hpp"
+#include "compute/DescriptorPool.hpp"
+#include "compute/CommandPool.hpp"
+#endif
 
 namespace RayTracer::ECS {
     /* The Sphere struct, which builds on the RenderEntity struct in an entity-component-system way. */
@@ -45,6 +54,11 @@ namespace RayTracer::ECS {
 
     /* Pre-renders the sphere on the CPU, single-threaded. */
     void cpu_pre_render_sphere(Tools::Array<Vertex>& vertices, Sphere* sphere);
+
+    #ifdef ENABLE_VULKAN
+    /* Pre-renders the sphere on the GPU using Vulkan compute shaders. */
+    void gpu_pre_render_sphere(Tools::Array<Vertex>& vertices, const Compute::GPU& gpu, Compute::MemoryPool& device_memory_pool, Compute::MemoryPool& stage_memory_pool, Compute::DescriptorPool& descriptor_pool, Compute::CommandPool& compute_command_pool, const Compute::CommandBuffer& staging_cb, Sphere* sphere);
+    #endif
 
 }
 

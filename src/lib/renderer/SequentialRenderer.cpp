@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 15:25:06
  * Last edited:
- *   03/05/2021, 21:17:22
+ *   05/05/2021, 15:27:18
  * Auto updated?
  *   Yes
  *
@@ -27,7 +27,7 @@ using namespace CppDebugger::SeverityValues;
 
 
 /***** RAYTRACING FUNCTIONS *****/
-glm::vec3 ray_color(const Tools::Array<CVertex>& vertices, const Tools::Array<glm::vec3>& points, glm::vec3 origin, glm::vec3 direction) {
+glm::vec3 ray_color(const Tools::Array<GVertex>& vertices, const Tools::Array<glm::vec4>& points, glm::vec3 origin, glm::vec3 direction) {
     DENTER("ray_color");
 
     // Loop through the vertices so find any one we hit
@@ -115,8 +115,8 @@ void SequentialRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entit
     DINDENT;
 
     // We start by throwing out any old vertices we might have
-    this->entity_cvertices.clear();
-    this->entity_cpoints.clear();
+    this->entity_vertices.clear();
+    this->entity_points.clear();
 
     // Prepare the buffers for the per-entity vertices
     Tools::Array<Vertex> vertices;
@@ -150,7 +150,7 @@ void SequentialRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entit
         }
 
         // With the list prepared, insert it into the grand list of vertices
-        this->insert_cvertices(this->entity_cvertices, this->entity_cpoints, vertices);
+        this->insert_vertices(this->entity_vertices, this->entity_points, vertices);
     }
 
     // We're done! We pre-rendered all objects!
@@ -186,7 +186,7 @@ void SequentialRenderer::render(Camera& camera) const {
             glm::vec3 ray = camera.lower_left_corner + u * camera.horizontal + v * camera.vertical - camera.origin;
 
             // Compute the ray's color and store it as a vector
-            camera.get_frame().d()[y * width + x] = ray_color(this->entity_cvertices, this->entity_cpoints, camera.origin, ray);
+            camera.get_frame().d()[y * width + x] = ray_color(this->entity_vertices, this->entity_points, camera.origin, ray);
 
             if (i % 100 == 0) { DLOG(info, "Rendered ray " + std::to_string(i) + "/" + std::to_string(width * height)); }
             i++;

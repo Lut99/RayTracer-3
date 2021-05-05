@@ -18,6 +18,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # Set the option of the backend to use
 set(RENDERER_BACKEND "Vulkan" CACHE STRING "Define which backend to use for renderer. Options are: 'Vulkan'")
 
+# Convert the option to flags
+set(FLAGS "")
+if(RENDERER_BACKEND MATCHES "^Vulkan$")
+set(FLAGS "${FLAGS} -DENABLE_VULKAN")
+endif()
+
+# Add extra GCC flags needed
+message("Extra flags: '${FLAGS}'")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra ${FLAGS}")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_DEBUG} ${FLAGS}")
+
 # Define all include directories
 SET(INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/src/lib" "${Vulkan_INCLUDE_DIRS}")
 
@@ -35,8 +46,6 @@ set_target_properties(raytracer
                       RUNTIME_OUTPUT_DIRECTORY_DEBUG ${PROJECT_SOURCE_DIR}/bin
                       RUNTIME_OUTPUT_DIRECTORY_RELEASE ${PROJECT_SOURCE_DIR}/bin
                       )
-# Add extra GCC flags needed
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra")
 
 # Add the include directories for this target
 target_include_directories(raytracer PUBLIC "${INCLUDE_DIRS}")
@@ -55,5 +64,6 @@ add_custom_target(shaders
     COMMAND glslc -fshader-stage=compute -o ${PROJECT_SOURCE_DIR}/bin/shaders/test_shader.spv ${PROJECT_SOURCE_DIR}/src/shaders/test_shader.glsl
     COMMAND glslc -fshader-stage=compute -o ${PROJECT_SOURCE_DIR}/bin/shaders/simple_blue_background.spv ${PROJECT_SOURCE_DIR}/src/shaders/simple_blue_background.glsl
     COMMAND glslc -fshader-stage=compute -o ${PROJECT_SOURCE_DIR}/bin/shaders/raytracer_v1.spv ${PROJECT_SOURCE_DIR}/src/lib/shaders/raytracer_v1.glsl
+    COMMAND glslc -fshader-stage=compute -o ${PROJECT_SOURCE_DIR}/bin/shaders/pre_render_sphere_v1.spv ${PROJECT_SOURCE_DIR}/src/lib/shaders/pre_render_sphere_v1.glsl
     COMMENT "Building shaders..."
 )

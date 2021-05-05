@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:54
  * Last edited:
- *   03/05/2021, 13:35:56
+ *   05/05/2021, 17:34:30
  * Auto updated?
  *   Yes
  *
@@ -89,6 +89,9 @@ namespace RayTracer::Compute {
         VkQueue vk_compute_queue;
         /* The memory queue on the device. Might be the same. */
         VkQueue vk_memory_queue;
+
+        /* The extensions enabled on the device. */
+        Tools::Array<const char*> vk_extensions;
 
     public:
         /* Constructor for the GPU class, which takes a list of required extensions to enable on the GPU. */
