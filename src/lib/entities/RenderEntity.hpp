@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:08:59
  * Last edited:
- *   05/05/2021, 17:18:20
+ *   06/05/2021, 18:08:48
  * Auto updated?
  *   Yes
  *
@@ -27,13 +27,16 @@ namespace RayTracer::ECS {
         /* Basic, 2D-triangle shape. */
         et_triangle = 1,
         /* Basic sphere shape. */
-        et_sphere = 2
+        et_sphere = 2,
+        /* Pre-rendered object from a file. */
+        et_object= 3
     };
     /* Maps an entity type to a string name. */
     static const std::string entity_type_names[] = {
         "none",
         "triangle",
-        "sphere"
+        "sphere",
+        "object"
     };
 
 
@@ -47,7 +50,7 @@ namespace RayTracer::ECS {
         /* Can be pre-rendered on the GPU. */  
         eprmf_gpu = 0x2
     };
-
+    
     /* Describes the possible pre-rendering operations that the Renderer has to do for this entity. */
     enum EntityPreRenderOperation {
         /* No render operation defined. */
@@ -55,13 +58,16 @@ namespace RayTracer::ECS {
         /* Generate a 2D triangle. */
         epro_generate_triangle = 1,
         /* Generate a 3D sphere. */
-        epro_generate_sphere = 2
+        epro_generate_sphere = 2,
+        /* Load an object file. */
+        epro_load_object_file = 3
     };
     /* Maps an entity pre render operation to a string name. */
     static const std::string entity_pre_render_operation_names[] = {
         "none",
         "generate_triangle",
-        "generate_sphere"
+        "generate_sphere",
+        "load_object_file"
     };
 
 

@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:28
  * Last edited:
- *   05/05/2021, 17:22:15
+ *   06/05/2021, 17:01:45
  * Auto updated?
  *   Yes
  *
@@ -64,11 +64,6 @@ namespace RayTracer {
         Compute::DescriptorSetLayout* raytrace_dsl;
         /* Command buffer that is used to schedule staging-related memory transfers on. */
         Compute::CommandBufferHandle staging_cb_h;
-
-
-
-        /* Given a list of vertices pre-rendered from an entity, injects them into the list of points and indexed list of GVertices. This version of the algorithm is accelerated using compute shaders. */
-        void vk_insert_gvertices(Tools::Array<GVertex>& gvertices, Tools::Array<glm::vec4>& points, const Array<Vertex>& vertices);
 
     public:
         /* Constructor for the VulkanRenderer class. */

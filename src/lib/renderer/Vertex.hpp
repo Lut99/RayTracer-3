@@ -4,7 +4,7 @@
  * Created:
  *   02/05/2021, 15:45:39
  * Last edited:
- *   05/05/2021, 15:24:35
+ *   06/05/2021, 17:01:17
  * Auto updated?
  *   Yes
  *
@@ -20,33 +20,33 @@
 #include "glm/glm.hpp"
 
 namespace RayTracer {
-    /* The Vertex struct, which represents a single vertex, optimised for CPU usage. */
-    struct Vertex {
-        /* The first point of the vertex. */
-        alignas(16) glm::vec3 p1;
-        /* The second point of the vertex. */
-        alignas(16) glm::vec3 p2;
-        /* The third point of the vertex. */
-        alignas(16) glm::vec3 p3;
+    /* The Face struct, which represents a single face, optimised for CPU usage. */
+    struct Face {
+        /* The first vertex of the face. */
+        alignas(16) glm::vec3 v1;
+        /* The second vertex of the face. */
+        alignas(16) glm::vec3 v2;
+        /* The third vertex of the face. */
+        alignas(16) glm::vec3 v3;
 
-        /* The normal of the vertex. */
+        /* The normal of the face. */
         alignas(16) glm::vec3 normal;
-        /* The color of the vertex. */
+        /* The color of the face. */
         alignas(16) glm::vec3 color;
     };
 
-    /* The GPU-compatible & point-indexed Vertex counterpart, the GVertex struct. */
-    struct GVertex {
-        /* The first point of the vertex. */
-        alignas(4) uint32_t p1;
-        /* The second point of the vertex. */
-        alignas(4) uint32_t p2;
-        /* The third point of the vertex. */
-        alignas(4) uint32_t p3;
+    /* The GPU-compatible & vertex-indexed Face counterpart, the GFace struct. */
+    struct GFace {
+        /* The first vertex of the face. */
+        alignas(4) uint32_t v1;
+        /* The second vertex of the face. */
+        alignas(4) uint32_t v2;
+        /* The third vertex of the face. */
+        alignas(4) uint32_t v3;
 
-        /* The normal of the vertex. */
+        /* The normal of the face. */
         alignas(16) glm::vec3 normal;
-        /* The color of the vertex. */
+        /* The color of the face. */
         alignas(16) glm::vec3 color;
     };
 

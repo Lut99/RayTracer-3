@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:17:35
  * Last edited:
- *   06/05/2021, 16:18:21
+ *   06/05/2021, 18:17:16
  * Auto updated?
  *   Yes
  *
@@ -27,9 +27,9 @@ using namespace CppDebugger::SeverityValues;
 
 
 /***** MACROS *****/
-/* Shortcut for getting the i'th point in the vertex. */
-#define VERTEX_POINT(VERTEX, I) \
-    ((I) == 0 ? (VERTEX).p1 : ((I) == 1 ? (VERTEX).p2 : (VERTEX).p3))
+/* Shortcut for getting the i'th point in the face. */
+#define FACE_POINT(FACE, I) \
+    ((I) == 0 ? (FACE).v1 : ((I) == 1 ? (FACE).v2 : (FACE).v3))
 
 
 
@@ -69,16 +69,16 @@ Renderer::Renderer() {
 
 /* Copy constructor for the Renderer baseclass. */
 Renderer::Renderer(const Renderer& other) :
-    entity_vertices(other.entity_vertices),
-    entity_points(other.entity_points)
+    entity_faces(other.entity_faces),
+    entity_vertices(other.entity_vertices)
 {
     /* Does nothing */
 }
 
 /* Move constructor for the Renderer baseclass. */
 Renderer::Renderer(Renderer&& other) :
-    entity_vertices(other.entity_vertices),
-    entity_points(other.entity_points)
+    entity_faces(other.entity_faces),
+    entity_vertices(other.entity_vertices)
 {
     /* Does nothing */
 }
@@ -90,23 +90,23 @@ Renderer::~Renderer() {
 
 
 
-/* Given a list of vertices pre-rendered from an entity, injects them into the list of points and indexed list of Vertices. */
-void Renderer::insert_vertices(Tools::Array<GVertex>& vertices, Tools::Array<glm::vec4>& points, const Array<Vertex>& new_vertices) {
-    DENTER("Renderer::insert_cvertices");
+/* Given a list of faces pre-rendered from an entity, injects them into the list of vertices and indexed list of Faces. */
+void Renderer::insert_faces(Tools::Array<GFace>& faces, Tools::Array<glm::vec4>& points, const Array<Face>& new_faces) {
+    DENTER("Renderer::insert_faces");
 
     // Define an unordered map, which we use to more quickly recognize if a vertex exists or not
     std::unordered_map<glm::vec4, uint32_t> point_map;
 
     // Regardless of how we pre-rendered, we can now condense the resulting arrays in indexed equivalents
-    point_map.reserve(new_vertices.size());
-    vertices.reserve(vertices.size() + new_vertices.size());
-    points.reserve(points.size() + new_vertices.size());
-    for (size_t i = 0; i < new_vertices.size(); i++) {
+    point_map.reserve(new_faces.size());
+    faces.reserve(faces.size() + new_faces.size());
+    points.reserve(points.size() + new_faces.size());
+    for (size_t i = 0; i < new_faces.size(); i++) {
         // For each of the points, see if there are existing entries for them
         uint32_t indices[] = { numeric_limits<uint32_t>::max(), numeric_limits<uint32_t>::max(), numeric_limits<uint32_t>::max() };
         for (size_t lp = 0; lp < 3; lp++) {
             // Get a vec4 equivalent of the correct point
-            glm::vec4 point = glm::vec4(VERTEX_POINT(new_vertices[i], lp), 0.0);
+            glm::vec4 point = glm::vec4(FACE_POINT(new_faces[i], lp), 0.0);
 
             // Search the point list to see if it indeed exists
             std::unordered_map<glm::vec4, uint32_t>::iterator iter = point_map.find(point);
@@ -124,10 +124,10 @@ void Renderer::insert_vertices(Tools::Array<GVertex>& vertices, Tools::Array<glm
         }
 
         // Now, we have enough to create a new GVertex
-        vertices.push_back({
+        faces.push_back({
             indices[0], indices[1], indices[2],
-            new_vertices[i].normal,
-            new_vertices[i].color
+            new_faces[i].normal,
+            new_faces[i].color
         });
 
         // if (i % 100 == 0) {
@@ -146,10 +146,35 @@ void Renderer::insert_vertices(Tools::Array<GVertex>& vertices, Tools::Array<glm
 
 
 
+/* Appends a given list of indexed faces to the global list of indexed Faces. */
+void Renderer::append_faces(Tools::Array<GFace>& faces, Tools::Array<glm::vec4>& vertices, const Tools::Array<GFace>& new_faces, const Tools::Array<glm::vec4>& new_vertices) {
+    DENTER("Renderer::append_faces");
+
+    // We do not check for uniqueness, but simply append, since objects are probably not likely to share vertices
+    uint32_t offset = static_cast<uint32_t>(faces.size());
+    for (size_t i = 0; i < new_faces.size(); i++) {
+        // Add it to the new list, except that we add the offset to each index
+        faces.push_back({
+            new_faces[i].v1 + offset, new_faces[i].v2 + offset, new_faces[i].v3 + offset,
+            new_faces[i].normal,
+            new_faces[i].color
+        });
+    }
+
+    // Also append the points
+    for (size_t i = 0; i < new_vertices.size(); i++) {
+        vertices.push_back(new_vertices[i]);
+    }
+
+    DRETURN;
+}
+
+
+
 /* Swap operator for the Renderer baseclass. */
 void RayTracer::swap(Renderer& r1, Renderer& r2) {
     using std::swap;
 
+    swap(r1.entity_faces, r2.entity_faces);
     swap(r1.entity_vertices, r2.entity_vertices);
-    swap(r1.entity_points, r2.entity_points);
 }

@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 13:59:41
  * Last edited:
- *   06/05/2021, 16:15:32
+ *   06/05/2021, 17:11:49
  * Auto updated?
  *   Yes
  *
@@ -22,18 +22,18 @@ layout (local_size_x = 32, local_size_y = 32) in;
 
 
 /* Structs */
-// The GVertex struct, which is a single vertex ready to be rendered on the GPU. */
-struct GVertex {
-    /* The first point of the vertex. */
-    uint p1;
-    /* The second point of the vertex. */
-    uint p2;
-    /* The third point of the vertex. */
-    uint p3;
+// The GFace struct, which is a single face ready to be rendered on the GPU. */
+struct GFace {
+    /* The first vertex of the face. */
+    uint v1;
+    /* The second vertex of the face. */
+    uint v2;
+    /* The third vertex of the face. */
+    uint v3;
 
-    /* The normal of the vertex. */
+    /* The normal of the face. */
     vec4 normal;
-    /* The color of the vertex. */
+    /* The color of the face. */
     vec4 color;  
 };
 
@@ -67,14 +67,14 @@ layout(std430, set = 0, binding = 1) buffer Camera {
 } camera;
 
 // The list of vertices we're supposed to render
-layout(std430, set = 0, binding = 2) buffer GVertices {
-    GVertex data[];
-} vertices;
+layout(std430, set = 0, binding = 2) buffer GFaces {
+    GFace data[];
+} faces;
 
 // Finally, the list of unique points used by the vertices
-layout(std430, set = 0, binding = 3) buffer Points {
+layout(std430, set = 0, binding = 3) buffer Vertices {
     vec4 data[];
-} points;
+} vertices;
 
 
 
@@ -83,18 +83,18 @@ vec4 ray_color(vec3 origin, vec3 direction) {
     // Loop through the vertices so find any one we hit
     uint min_i = 0;
     float min_t = 1e99;
-    for (uint i = 0; i < vertices.data.length(); i++) {
+    for (uint i = 0; i < faces.data.length(); i++) {
         // First, check if the ray happens to be perpendicular to the triangle's plane
-        vec3 normal = vertices.data[i].normal.xyz;
+        vec3 normal = faces.data[i].normal.xyz;
         if (dot(direction, normal) == 0) {
             // No intersection for sure
             continue;
         }
 
         // Otherwise, fetch the points from the point list
-        vec3 p1 = points.data[vertices.data[i].p1].xyz;
-        vec3 p2 = points.data[vertices.data[i].p2].xyz;
-        vec3 p3 = points.data[vertices.data[i].p3].xyz;
+        vec3 p1 = vertices.data[faces.data[i].v1].xyz;
+        vec3 p2 = vertices.data[faces.data[i].v2].xyz;
+        vec3 p3 = vertices.data[faces.data[i].v3].xyz;
 
         // Otherwise, compute the distance point of the plane
         float plane_distance = dot(normal, p1);
@@ -124,7 +124,7 @@ vec4 ray_color(vec3 origin, vec3 direction) {
 
     // If we hit a vertex (or its too far away), return its color
     if (min_t < 1e99) {
-        return vertices.data[min_i].color;
+        return faces.data[min_i].color;
     } else {
         // Return the blue sky
         vec3 unit_direction = direction / length(direction);

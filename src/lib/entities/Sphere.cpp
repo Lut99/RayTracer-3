@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 12:45:50
  * Last edited:
- *   06/05/2021, 16:48:04
+ *   06/05/2021, 18:08:52
  * Auto updated?
  *   Yes
  *
@@ -12,7 +12,7 @@
  *   Contains code for pre-rendering a Sphere on the CPU (single threaded).
 **/
 
-#define ENABLE_VULKAN
+// #define ENABLE_VULKAN
 
 #include <cmath>
 #include <CppDebugger.hpp>
@@ -110,13 +110,13 @@ Sphere* ECS::create_sphere(const glm::vec3& center, float radius, uint32_t n_mer
 
 
 /* Pre-renders the sphere on the CPU, single-threaded. */
-void ECS::cpu_pre_render_sphere(Tools::Array<Vertex>& vertices, Sphere* sphere) {
+void ECS::cpu_pre_render_sphere(Tools::Array<Face>& faces, Sphere* sphere) {
     DENTER("ECS::cpu_pre_render_sphere");
     DLOG(info, "Pre-rendering sphere with " + std::to_string(sphere->n_meridians) + " meridians and " + std::to_string(sphere->n_parallels) + " parallels...");
 
     // We implement a standard / UV sphere for simplicity
     size_t n_vertices = sphere->n_meridians + 2 * ((sphere->n_parallels - 2) * sphere->n_meridians) + sphere->n_meridians;
-    vertices.reserve(n_vertices);
+    faces.reserve(n_vertices);
 
     // First, generate all vertices around the north pole
     uint32_t p = 1;
@@ -134,7 +134,7 @@ void ECS::cpu_pre_render_sphere(Tools::Array<Vertex>& vertices, Sphere* sphere) 
         glm::vec3 c = sphere->color * glm::abs(glm::dot(n, glm::vec3(0.0, 0.0, -1.0)));
 
         // Store as vertex
-        vertices.push_back({
+        faces.push_back({
             p1, p2, p3,
             n,
             c
@@ -162,12 +162,12 @@ void ECS::cpu_pre_render_sphere(Tools::Array<Vertex>& vertices, Sphere* sphere) 
             glm::vec3 c2 = sphere->color * glm::abs(glm::dot(n2, glm::vec3(0.0, 0.0, -1.0)));
 
             // Store as vertices
-            vertices.push_back({
+            faces.push_back({
                 p1, p3, p4,
                 n1,
                 c1
             });
-            vertices.push_back({
+            faces.push_back({
                 p1, p2, p4,
                 n2,
                 c2
@@ -190,7 +190,7 @@ void ECS::cpu_pre_render_sphere(Tools::Array<Vertex>& vertices, Sphere* sphere) 
         glm::vec3 c = sphere->color * glm::abs(glm::dot(n, glm::vec3(0.0, 0.0, -1.0)));
 
         // Store as vertex
-        vertices.push_back({
+        faces.push_back({
             p1, p2, p3,
             n,
             c
@@ -204,7 +204,7 @@ void ECS::cpu_pre_render_sphere(Tools::Array<Vertex>& vertices, Sphere* sphere) 
 #ifdef ENABLE_VULKAN
 /* Pre-renders the sphere on the GPU using Vulkan compute shaders. */
 void ECS::gpu_pre_render_sphere(
-    Tools::Array<Vertex>& vertices,
+    Tools::Array<Face>& faces,
     const Compute::GPU& gpu,
     Compute::MemoryPool& device_memory_pool,
     Compute::MemoryPool& stage_memory_pool,
@@ -222,11 +222,11 @@ void ECS::gpu_pre_render_sphere(
 
     // First, compute the sizes for all buffers
     size_t gsphere_size = sizeof(SphereData);
-    size_t gvertices_count = (sphere->n_meridians + 2 * ((sphere->n_parallels - 2) * sphere->n_meridians) + sphere->n_meridians);
-    size_t gvertices_size = gvertices_count * sizeof(Vertex);
+    size_t gfaces_count = (sphere->n_meridians + 2 * ((sphere->n_parallels - 2) * sphere->n_meridians) + sphere->n_meridians);
+    size_t gfaces_size = gfaces_count * sizeof(Face);
 
     // Allocate the buffer itself using the largest size. We don't use the point buffer as we don't touch that data from the GPU
-    size_t staging_size = max({ gsphere_size, gvertices_size });
+    size_t staging_size = max({ gsphere_size, gfaces_size });
     BufferHandle staging_h = stage_memory_pool.allocate(staging_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     Buffer staging = stage_memory_pool[staging_h];
 
@@ -263,10 +263,10 @@ void ECS::gpu_pre_render_sphere(
     DLOG(info, "Preparing output buffer...");
 
     // Next is the vertex buffer
-    BufferHandle gvertices_h = device_memory_pool.allocate(gvertices_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    Buffer gvertices = device_memory_pool[gvertices_h];
+    BufferHandle gfaces_h = device_memory_pool.allocate(gfaces_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Buffer gfaces = device_memory_pool[gfaces_h];
     DINDENT;
-    DLOG(info, "Vertex buffer is " + std::to_string(gvertices_size / sizeof(Vertex)) + " elements (" + std::to_string(gvertices_size) + " bytes)");
+    DLOG(info, "Face buffer is " + std::to_string(gfaces_size / sizeof(Face)) + " elements (" + std::to_string(gfaces_size) + " bytes)");
     DDEDENT;
 
 
@@ -283,7 +283,7 @@ void ECS::gpu_pre_render_sphere(
     // Next, bind a descriptor set
     DescriptorSet descriptor_set = descriptor_pool.allocate(layout);
     descriptor_set.set(gpu, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, Tools::Array<Buffer>({ gsphere }));
-    descriptor_set.set(gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, Tools::Array<Buffer>({ gvertices }));
+    descriptor_set.set(gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, Tools::Array<Buffer>({ gfaces }));
 
 
 
@@ -327,11 +327,11 @@ void ECS::gpu_pre_render_sphere(
 
 
     /* Step 7: Retrieving vertices. */
-    DLOG(info, "Retrieving vertices...");
+    DLOG(info, "Retrieving faces...");
 
     // Use the get method together with the staging buffer and the resulting lists' wdata
-    vertices.reserve(gvertices_count);
-    gvertices.get(gpu, staging, staging_cb, gpu.memory_queue(), vertices.wdata(gvertices_count), gvertices_size);
+    faces.reserve(gfaces_count);
+    gfaces.get(gpu, staging, staging_cb, gpu.memory_queue(), faces.wdata(gfaces_count), gfaces_size);
     // for (size_t i = 0; i < sphere->n_meridians; i++) {
     //     // Compute the point for funz
     //     // Generate the north pole
@@ -506,7 +506,7 @@ void ECS::gpu_pre_render_sphere(
     descriptor_pool.deallocate(descriptor_set);
 
     // Destroy the three main buffers
-    device_memory_pool.deallocate(gvertices_h);
+    device_memory_pool.deallocate(gfaces_h);
     device_memory_pool.deallocate(gsphere_h);
 
     // Finally, destroy the staging buffer

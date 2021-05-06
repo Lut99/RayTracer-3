@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   06/05/2021, 16:14:12
+ *   06/05/2021, 18:21:10
  * Auto updated?
  *   Yes
  *
@@ -25,6 +25,7 @@
 
 #include "entities/Triangle.hpp"
 #include "entities/Sphere.hpp"
+#include "entities/Object.hpp"
 
 #include "tools/Common.hpp"
 
@@ -213,176 +214,6 @@ VulkanRenderer::~VulkanRenderer() {
 
 
 
-/* Given a list of vertices pre-rendered from an entity, injects them into the list of points and indexed list of GVertices. This version of the algorithm is accelerated using compute shaders. */
-void VulkanRenderer::vk_insert_gvertices(Tools::Array<GVertex>& gvertices, Tools::Array<glm::vec4>& points, const Array<Vertex>& vertices) {
-    DENTER("VulkanRenderer::vk_insert_gvertices");
-    DLOG(info, "Condensing list of points, accelerated...");
-
-    /* Step 1: Prepare the hot-swappable constant buffer. */
-    size_t constant_size = sizeof(ConstantData);
-    BufferHandle constant_h = this->stage_memory_pool->allocate(constant_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-    Buffer constant = (*this->stage_memory_pool)[constant_h];
-
-
-
-    /* Step 2: Prepare point buffers. */
-    // First, we prepare the list of points as seen in the vertices for use on the GPU
-    glm::vec4* cpu_new_points = new glm::vec4[3 * vertices.size()];
-    for (size_t i = 0; i < vertices.size(); i++) {
-        cpu_new_points[3 * i    ] = glm::vec4(vertices[i].p1, 0.0);
-        cpu_new_points[3 * i + 1] = glm::vec4(vertices[i].p2, 0.0);
-        cpu_new_points[3 * i + 2] = glm::vec4(vertices[i].p3, 0.0);
-    }
-
-    // Allocate a two new buffers on the GPU: One for the list of new points and one for the existing
-    size_t old_points_size = points.size() * sizeof(glm::vec4);
-    size_t new_points_size = 3 * vertices.size() * sizeof(glm::vec4);
-    BufferHandle old_points_h = this->device_memory_pool->allocate(old_points_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    BufferHandle new_points_h = this->device_memory_pool->allocate(new_points_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    Buffer old_points = (*this->device_memory_pool)[old_points_h];
-    Buffer new_points = (*this->device_memory_pool)[new_points_h];
-
-    // Allocate two staging buffers to move the data there
-    BufferHandle old_points_staging_h = this->stage_memory_pool->allocate(old_points_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    BufferHandle new_points_staging_h = this->stage_memory_pool->allocate(new_points_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    Buffer old_points_staging = (*this->device_memory_pool)[old_points_staging_h];
-    Buffer new_points_staging = (*this->device_memory_pool)[new_points_staging_h];
-
-    // Use them to transfer the data around
-    CommandBuffer staging_cb = (*this->memory_command_pool)[this->staging_cb_h];
-    old_points.set(*this->gpu, old_points_staging, staging_cb, this->gpu->memory_queue(), (void*) points.rdata(), old_points_size);
-    new_points.set(*this->gpu, new_points_staging, staging_cb, this->gpu->memory_queue(), (void*) cpu_new_points, new_points_size);
-
-    // When done, deallocate the staging buffer for the old memory - but not for the new, as we'll use that to copy back
-    this->stage_memory_pool->deallocate(old_points_staging_h);
-
-
-
-    /* Step 3: Prepare descriptor sets. */
-    DescriptorSet descriptor_set = this->descriptor_pool->allocate(*this->insert_dsl);
-    descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, Tools::Array<Buffer>({ old_points }));
-    descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, Tools::Array<Buffer>({ new_points }));
-
-
-
-    /* Step 4: Prepare the pipeline. */
-    // Initialize a new pipeline using the new layout
-    DINDENT;
-    Pipeline pipeline(
-        *this->gpu,
-        Shader(*this->gpu, Tools::get_executable_path() + "/shaders/insert_gvertices_v1.spv"),
-        Tools::Array<DescriptorSetLayout>({ *this->insert_dsl })
-    );
-    DDEDENT;
-
-
-
-    /* Step 5: Iterations. */
-    // Now we launch a series of kernels for each new point, which we do to synchronize them
-    ConstantData* constant_area;
-    constant.map(*this->gpu, (void**) &constant_area);
-    constant_area->duplicate_constant = INFINITY;
-    for (size_t i = 0; i < points.size(); i++) {
-        // First, we update the index
-        constant_area->i = static_cast<uint32_t>(i);
-        constant.flush(*this->gpu);
-        descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, Tools::Array<Buffer>({ constant }));
-
-        // Then, record a new command buffer
-        CommandBufferHandle cb_compute_h = this->compute_command_pool->allocate();
-        CommandBuffer cb_compute = (*this->compute_command_pool)[cb_compute_h];
-        cb_compute.begin();
-        pipeline.bind(cb_compute);
-        descriptor_set.bind(cb_compute, pipeline.layout());
-        vkCmdDispatch(cb_compute, ((3 * vertices.size()) / 32) + 1, 1, 1);
-        cb_compute.end();
-
-        // Submit it
-        VkResult vk_result;
-        VkSubmitInfo submit_info = cb_compute.get_submit_info();
-        if ((vk_result = vkQueueSubmit(this->gpu->compute_queue(), 1, &submit_info, VK_NULL_HANDLE)) != VK_SUCCESS) {
-            DLOG(fatal, "Could not submit command buffer to queue: " + vk_error_map[vk_result]);
-        }
-
-        // Finally, wait until the rendering is done as a synchronization barrier so we may re-use the command buffer
-        if ((vk_result = vkQueueWaitIdle(this->gpu->compute_queue())) != VK_SUCCESS) {
-            DLOG(fatal, "Could not wait for queue to become idle: " + vk_error_map[vk_result]);
-        }
-
-        // Deallocate the command buffer neatly
-        this->compute_command_pool->deallocate(cb_compute_h);
-    }
-
-    
-
-    /* Step 6: Copy result back. */
-    new_points.get(*this->gpu, new_points_staging, staging_cb, this->gpu->memory_queue(), (void*) cpu_new_points, new_points_size);
-    
-    
-
-    /* Step 7: Cleanup Vulkan stuff. */
-    // Cleanup the descriptor set
-    this->descriptor_pool->deallocate(descriptor_set);
-
-    // Cleanup the remaining staging buffers
-    this->stage_memory_pool->deallocate(new_points_staging_h);
-    this->stage_memory_pool->deallocate(constant_h);
-
-    // Cleanup the two point buffers
-    this->device_memory_pool->deallocate(new_points_h);
-    this->device_memory_pool->deallocate(old_points_h);
-
-
-    /* Step 8: Finalize result. */
-    // Go through all the vertices and update them
-    gvertices.reserve(gvertices.size() + vertices.size());
-    points.reserve(points.size() + vertices.size());
-    for (size_t i = 0; i < vertices.size(); i++) {
-        // The GVertex struct that we'll add for this vertex
-        GVertex new_vertex;
-
-        // If the first point's y is INFINITY, then set its index
-        if (cpu_new_points[3 * i    ].y == INFINITY) {
-            new_vertex.p1 = static_cast<uint32_t>(cpu_new_points[3 * i    ].x);
-        } else {
-            // Append the point, then set its index
-            new_vertex.p1 = static_cast<uint32_t>(points.size());
-            points.push_back(cpu_new_points[3 * i    ]);
-        }
-
-        // Do the same for the second point
-        if (cpu_new_points[3 * i + 1].y == INFINITY) {
-            new_vertex.p2 = static_cast<uint32_t>(cpu_new_points[3 * i + 1].x);
-        } else {
-            // Append the point, then set its index
-            new_vertex.p2 = static_cast<uint32_t>(points.size());
-            points.push_back(cpu_new_points[3 * i + 1]);
-        }
-
-        // And the third
-        if (cpu_new_points[3 * i + 2].y == INFINITY) {
-            new_vertex.p3 = static_cast<uint32_t>(cpu_new_points[3 * i + 2].x);
-        } else {
-            // Append the point, then set its index
-            new_vertex.p3 = static_cast<uint32_t>(points.size());
-            points.push_back(cpu_new_points[3 * i + 2]);
-        }
-
-        // Finally, set the normal and the color and add it
-        new_vertex.normal = vertices[i].normal;
-        new_vertex.color = vertices[i].color;
-        gvertices.push_back(new_vertex);
-    }
-
-
-
-    /* Step 9: Cleanup CPU structures, done. */
-    delete[] cpu_new_points;
-    DRETURN;
-}
-
-
-
 /* Pre-renders the given list of RenderEntities, accelerated using Vulkan compute shaders. */
 void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities) {
     DENTER("VulkanRenderer::prerender");
@@ -390,16 +221,20 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
     DINDENT;
 
     // We start by throwing out any old vertices we might have
+    this->entity_faces.clear();
     this->entity_vertices.clear();
-    this->entity_points.clear();
 
     // Prepare the buffers for the per-entity vertices
-    Tools::Array<Vertex> vertices;
+    Tools::Array<Face> faces;
+    Tools::Array<GFace> gfaces;
+    Tools::Array<glm::vec4> gvertices;
 
     // Next, loop through all entities to render them
     for (size_t i = 0; i < entities.size(); i++) {
         // Clean the temporary buffers
-        vertices.clear();
+        faces.clear();
+        gfaces.clear();
+        gvertices.clear();
 
         // Select the proper pre-render mode
         if (entities[i]->pre_render_mode & EntityPreRenderModeFlags::eprmf_gpu) {
@@ -408,7 +243,7 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
                 case EntityPreRenderOperation::epro_generate_sphere:
                     /* Prepare the pipeline using this shader. */
                     gpu_pre_render_sphere(
-                        vertices,
+                        faces,
                         *this->gpu,
                         *this->device_memory_pool,
                         *this->stage_memory_pool,
@@ -429,12 +264,17 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
             switch (entities[i]->pre_render_operation) {
                 case EntityPreRenderOperation::epro_generate_triangle:
                     /* Call the generate triangle CPU function. */
-                    cpu_pre_render_triangle(vertices, (Triangle*) entities[i]);
+                    cpu_pre_render_triangle(faces, (Triangle*) entities[i]);
                     break;
 
                 case EntityPreRenderOperation::epro_generate_sphere:
                     /* Call the generate sphere CPU function. */
-                    cpu_pre_render_sphere(vertices, (Sphere*) entities[i]);
+                    cpu_pre_render_sphere(faces, (Sphere*) entities[i]);
+                    break;
+                
+                case EntityPreRenderOperation::epro_load_object_file:
+                    /* Call the load object file CPU function. */
+                    cpu_pre_render_object(gfaces, gvertices, (Object*) entities[i]);
                     break;
 
                 default:
@@ -446,9 +286,14 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
             DLOG(fatal, "Entity " + std::to_string(i) + " of type " + entity_type_names[entities[i]->type] + " with the Vulkan compute shader back-end.");
         }
 
-        // With the list prepared, insert it into the grand list of vertices using more compute shaders
-        // this->vk_insert_gvertices(this->entity_gvertices, this->entity_gpoints, vertices);
-        this->insert_vertices(this->entity_vertices, this->entity_points, vertices);
+        // Insert the generated list into the global list. However, we do different things based on different operations
+        if (entities[i]->pre_render_operation == EntityPreRenderOperation::epro_load_object_file) {
+            // Just append the vertices and indices to the list
+            this->append_faces(this->entity_faces, this->entity_vertices, gfaces, gvertices);
+        } else {
+            // Strip all non-unique vertices and generate new indices
+            this->insert_faces(this->entity_faces, this->entity_vertices, faces);
+        }
     }
 
     // We're done! We pre-rendered all objects!
@@ -473,8 +318,8 @@ void VulkanRenderer::render(Camera& cam) const {
     DLOG(info, "Transferring vertices & points to GPU...");
     
     // We begin by allocating the buffers required for the main data
-    size_t vertices_size = this->entity_vertices.size() * sizeof(GVertex);
-    size_t points_size = this->entity_points.size() * sizeof(glm::vec4);
+    size_t vertices_size = this->entity_faces.size() * sizeof(GFace);
+    size_t points_size = this->entity_vertices.size() * sizeof(glm::vec4);
     BufferHandle vertices_h = this->device_memory_pool->allocate(vertices_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     BufferHandle points_h = this->device_memory_pool->allocate(points_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     Buffer vertices = (*this->device_memory_pool)[vertices_h];
@@ -488,8 +333,8 @@ void VulkanRenderer::render(Camera& cam) const {
 
     // Next, fill the vertex & point buffers with the allocated staging buffers
     CommandBuffer staging_cb = (*this->memory_command_pool)[this->staging_cb_h];
-    vertices.set(*this->gpu, vertices_staging, staging_cb, this->gpu->memory_queue(), (void*) this->entity_vertices.rdata(), vertices_size);
-    points.set(*this->gpu, points_staging, staging_cb, this->gpu->memory_queue(), (void*) this->entity_points.rdata(), points_size);
+    vertices.set(*this->gpu, vertices_staging, staging_cb, this->gpu->memory_queue(), (void*) this->entity_faces.rdata(), vertices_size);
+    points.set(*this->gpu, points_staging, staging_cb, this->gpu->memory_queue(), (void*) this->entity_vertices.rdata(), points_size);
 
     // Once that's done, deallocate the staging buffers again
     this->stage_memory_pool->deallocate(vertices_staging_h);
@@ -551,6 +396,7 @@ void VulkanRenderer::render(Camera& cam) const {
     
     // Initialize a new pipeline using the new layout
     DINDENT;
+    DLOG(info, "About to render " + std::to_string(this->entity_faces.size()) + " faces");
     Pipeline pipeline(
         *this->gpu,
         Shader(*this->gpu, Tools::get_executable_path() + "/shaders/raytracer_v2.spv"),

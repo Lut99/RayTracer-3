@@ -1,5 +1,5 @@
 # Specify the libraries in this directory
-add_library(Entities STATIC ${CMAKE_CURRENT_SOURCE_DIR}/RenderEntity.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Triangle.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Sphere.cpp)
+add_library(Entities STATIC ${CMAKE_CURRENT_SOURCE_DIR}/RenderEntity.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Triangle.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Sphere.cpp ${CMAKE_CURRENT_SOURCE_DIR}/Object.cpp)
 
 # Set the dependencies for this library:
 target_include_directories(Entities PUBLIC

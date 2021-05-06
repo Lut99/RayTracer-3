@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 15:25:06
  * Last edited:
- *   06/05/2021, 14:41:53
+ *   06/05/2021, 18:11:27
  * Auto updated?
  *   Yes
  *
@@ -17,6 +17,7 @@
 
 #include "entities/Triangle.hpp"
 #include "entities/Sphere.hpp"
+#include "entities/Object.hpp"
 
 #include "SequentialRenderer.hpp"
 
@@ -27,24 +28,24 @@ using namespace CppDebugger::SeverityValues;
 
 
 /***** RAYTRACING FUNCTIONS *****/
-glm::vec3 ray_color(const Tools::Array<GVertex>& vertices, const Tools::Array<glm::vec4>& points, glm::vec3 origin, glm::vec3 direction) {
+glm::vec3 ray_color(const Tools::Array<GFace>& faces, const Tools::Array<glm::vec4>& vertices, glm::vec3 origin, glm::vec3 direction) {
     DENTER("ray_color");
 
     // Loop through the vertices so find any one we hit
     uint min_i = 0;
     float min_t = INFINITY;
-    for (size_t i = 0; i < vertices.size(); i++) {
+    for (size_t i = 0; i < faces.size(); i++) {
         // First, check if the ray happens to be perpendicular to the triangle's plane
-        glm::vec3 normal = vertices[i].normal;
+        glm::vec3 normal = faces[i].normal;
         if (dot(direction, normal) == 0) {
             // No intersection for sure
             continue;
         }
 
         // Otherwise, fetch the points from the point list
-        glm::vec3 p1 = points[vertices[i].p1];
-        glm::vec3 p2 = points[vertices[i].p2];
-        glm::vec3 p3 = points[vertices[i].p3];
+        glm::vec3 p1 = vertices[faces[i].v1];
+        glm::vec3 p2 = vertices[faces[i].v2];
+        glm::vec3 p3 = vertices[faces[i].v3];
 
         // Otherwise, compute the distance point of the plane
         float plane_distance = dot(normal, p1);
@@ -83,7 +84,7 @@ glm::vec3 ray_color(const Tools::Array<GVertex>& vertices, const Tools::Array<gl
 
     // If we hit a vertex, return its color
     if (min_t != INFINITY) {
-        DRETURN vertices[min_i].color;
+        DRETURN faces[min_i].color;
     } else {
         // Return the blue sky
         glm::vec3 unit_direction = direction / length(direction);
@@ -115,16 +116,20 @@ void SequentialRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entit
     DINDENT;
 
     // We start by throwing out any old vertices we might have
+    this->entity_faces.clear();
     this->entity_vertices.clear();
-    this->entity_points.clear();
 
     // Prepare the buffers for the per-entity vertices
-    Tools::Array<Vertex> vertices;
+    Tools::Array<Face> faces;
+    Tools::Array<GFace> gfaces;
+    Tools::Array<glm::vec4> gvertices;
 
     // Next, loop through all entities to render them
     for (size_t i = 0; i < entities.size(); i++) {
         // Clean the temporary buffers
-        vertices.clear();
+        faces.clear();
+        gfaces.clear();
+        gvertices.clear();
 
         // Select the proper pre-render mode (only CPU is supported)
         if (entities[i]->pre_render_mode & EntityPreRenderModeFlags::eprmf_cpu) {
@@ -132,12 +137,17 @@ void SequentialRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entit
             switch (entities[i]->pre_render_operation) {
                 case EntityPreRenderOperation::epro_generate_triangle:
                     /* Call the generate triangle CPU function. */
-                    cpu_pre_render_triangle(vertices, (Triangle*) entities[i]);
+                    cpu_pre_render_triangle(faces, (Triangle*) entities[i]);
                     break;
 
                 case EntityPreRenderOperation::epro_generate_sphere:
                     /* Call the generate sphere CPU function. */
-                    cpu_pre_render_sphere(vertices, (Sphere*) entities[i]);
+                    cpu_pre_render_sphere(faces, (Sphere*) entities[i]);
+                    break;
+                
+                case EntityPreRenderOperation::epro_load_object_file:
+                    /* Call the load object file CPU function. */
+                    cpu_pre_render_object(gfaces, gvertices, (Object*) entities[i]);
                     break;
 
                 default:
@@ -149,8 +159,14 @@ void SequentialRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entit
             DLOG(fatal, "Entity " + std::to_string(i) + " of type " + entity_type_names[entities[i]->type] + " with the sequential back-end.");
         }
 
-        // With the list prepared, insert it into the grand list of vertices
-        this->insert_vertices(this->entity_vertices, this->entity_points, vertices);
+        // Insert the generated list into the global list. However, we do different things based on different operations
+        if (entities[i]->pre_render_operation == EntityPreRenderOperation::epro_load_object_file) {
+            // Just append the vertices and indices to the list
+            this->append_faces(this->entity_faces, this->entity_vertices, gfaces, gvertices);
+        } else {
+            // Strip all non-unique vertices and generate new indices
+            this->insert_faces(this->entity_faces, this->entity_vertices, faces);
+        }
     }
 
     // We're done! We pre-rendered all objects!
@@ -186,7 +202,7 @@ void SequentialRenderer::render(Camera& camera) const {
             glm::vec3 ray = camera.lower_left_corner + u * camera.horizontal + v * camera.vertical - camera.origin;
 
             // Compute the ray's color and store it as a vector
-            camera.get_frame().d()[y * width + x] = ray_color(this->entity_vertices, this->entity_points, camera.origin, ray);
+            camera.get_frame().d()[y * width + x] = ray_color(this->entity_faces, this->entity_vertices, camera.origin, ray);
 
             if (i % 1000 == 0) { DLOG(info, "Rendered ray " + std::to_string(i) + "/" + std::to_string(width * height)); }
             i++;
