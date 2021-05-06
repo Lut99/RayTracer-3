@@ -1,10 +1,10 @@
-/* RAYTRACER V 2.glsl
+/* RAYTRACER V 1.glsl
  *   by Lut99
  *
  * Created:
  *   03/05/2021, 13:59:41
  * Last edited:
- *   06/05/2021, 16:11:33
+ *   06/05/2021, 16:15:32
  * Auto updated?
  *   Yes
  *
@@ -109,18 +109,11 @@ vec4 ray_color(vec3 origin, vec3 direction) {
         // Now, compute the actual point where we hit the plane
         vec3 hitpoint = origin + t * direction;
 
-        // We can now compute barycentric coordinates from the hitpoint to see if the point is also within the triangle
-        // General idea: https://stackoverflow.com/a/37552406/5270125
-        // First, we compute alpha by finding the area of the triangle spanned by two edges of the triangle and the point we want to find
-        float S = length(cross(p2 - p1, p3 - p1));
-        float alpha = length(cross(p1 - p3, hitpoint - p3)) / S;
-        float beta = length(cross(p2 - p1, hitpoint - p1)) / S;
-        float gamma = length(cross(p3 - p2, hitpoint - p2)) / S;
-
-        // With this, we can perform the actual bounds-check
-        if (alpha >= 0 && alpha <= 1 &&
-            beta  >= 0 && beta  <= 1 &&
-            gamma >= 0 && gamma <= 1)
+        // We now perform the inside-out test to see if the triangle is hit within the plane
+        // General idea: https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/barycentric-coordinates
+        if (-dot(normal, cross(p2 - p1, hitpoint - p1)) >= 0.0 &&
+            -dot(normal, cross(p3 - p2, hitpoint - p2)) >= 0.0 &&
+            -dot(normal, cross(p1 - p3, hitpoint - p3)) >= 0.0)
         {
             // It's a hit! Store it as the closest t so far
             min_i = i;

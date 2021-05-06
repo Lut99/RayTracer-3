@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   03/05/2021, 20:48:45
+ *   06/05/2021, 16:49:51
  * Auto updated?
  *   Yes
  *
@@ -116,8 +116,8 @@ int parse_cli(CLIOptions& options, int argc, const char** argv) {
                 
                 cout << "Options:" << endl;
                 cout << "\t-f,--format\tThe format of the resulting frame. Supported formats are: 'png' and 'ppm' (default: png)." << endl;
-                cout << "\t-w,--width\tThe width of the resulting image, in pixels (default: 800)." << endl;
-                cout << "\t-h,--height\tThe height of th resulting image, in pixels (default: 600)." << endl;
+                cout << "\t-W,--width\tThe width of the resulting image, in pixels (default: 800)." << endl;
+                cout << "\t-H,--height\tThe height of th resulting image, in pixels (default: 600)." << endl;
 
                 cout << endl << "\t-h,--help\tShows this help menu, then exits." << endl << endl;
 
@@ -146,7 +146,7 @@ int parse_cli(CLIOptions& options, int argc, const char** argv) {
                     DRETURN -1;
                 }
             
-            } else if (key == "-w" || key == "--width") {
+            } else if (key == "-W" || key == "--width") {
                 // Make sure a value is given
                 if (value.empty()) {
                     // Be sure there are enough values
@@ -175,7 +175,7 @@ int parse_cli(CLIOptions& options, int argc, const char** argv) {
                     DRETURN -1;
                 }
 
-            } else if (key == "-h" || key == "--height") {
+            } else if (key == "-H" || key == "--height") {
                 // Make sure a value is given
                 if (value.empty()) {
                     // Be sure there are enough values
@@ -273,10 +273,12 @@ int main(int argc, const char** argv) {
         
 
         // Prerender the frame
-        Tools::Array<ECS::RenderEntity*> entities({ ECS::create_sphere({ 0.0, 0.0, -3.0 }, 1.0, 256, 256, { 1.0, 0.0, 0.0 }) });
-        renderer->prerender(entities);
+        Tools::Array<ECS::RenderEntity*> entities({ ECS::create_sphere({0.0, 0.0, -3.0}, 1.0, 256, 256, {1.0, 0.0, 0.0}) });
+        renderer->prerender(entities); 
         renderer->render(cam);
-        delete entities[0];
+        for (size_t i = 0; i < entities.size(); i++) {
+            delete entities[i];
+        }
 
         // With the queue idle for sure, copy the result buffer back to the staging buffer
         DLOG(info, "Saving frame...");

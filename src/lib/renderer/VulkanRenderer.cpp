@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   05/05/2021, 17:57:30
+ *   06/05/2021, 16:14:12
  * Auto updated?
  *   Yes
  *
@@ -553,7 +553,7 @@ void VulkanRenderer::render(Camera& cam) const {
     DINDENT;
     Pipeline pipeline(
         *this->gpu,
-        Shader(*this->gpu, Tools::get_executable_path() + "/shaders/raytracer_v1.spv"),
+        Shader(*this->gpu, Tools::get_executable_path() + "/shaders/raytracer_v2.spv"),
         Tools::Array<DescriptorSetLayout>({ *this->raytrace_dsl }),
         std::unordered_map<uint32_t, std::tuple<uint32_t, void*>>({ { 0, std::make_tuple(sizeof(uint32_t), (void*) &width) }, { 1, std::make_tuple(sizeof(uint32_t), (void*) &height) } })
     );

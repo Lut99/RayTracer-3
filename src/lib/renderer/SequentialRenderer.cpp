@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 15:25:06
  * Last edited:
- *   05/05/2021, 15:27:18
+ *   06/05/2021, 14:41:53
  * Auto updated?
  *   Yes
  *
@@ -188,7 +188,7 @@ void SequentialRenderer::render(Camera& camera) const {
             // Compute the ray's color and store it as a vector
             camera.get_frame().d()[y * width + x] = ray_color(this->entity_vertices, this->entity_points, camera.origin, ray);
 
-            if (i % 100 == 0) { DLOG(info, "Rendered ray " + std::to_string(i) + "/" + std::to_string(width * height)); }
+            if (i % 1000 == 0) { DLOG(info, "Rendered ray " + std::to_string(i) + "/" + std::to_string(width * height)); }
             i++;
         }
     }
