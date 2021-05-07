@@ -1,0 +1,43 @@
+/* TEST.scene
+ *   by Lut99
+ *
+ * Test file to help develop the scene parser.
+**/
+
+/* In the first section of the file, we can define object data (pretty much only useful for objects). */
+data {
+    .obj triangle {
+        v -1.0 0.0 0.0
+        v 1.0 0.0 0.0
+        v 0.0 1.0 0.0
+        f 1 2 3
+    }
+
+    @suppress unused-data
+    extern .obj teddy_bear: "bin/objects/teddy.obj";
+}
+
+/* In the second section, we can define the conceptual entities. */
+entities {
+    triangle triangle_1 {
+        p1: -1.0 0.0 0.0;
+        p2: 1.0 0.0 0.0;
+        p3: 0.0 1.0 0.0;
+        color: 1.0 0.0 0.0;
+    }
+
+    sphere sphere_1 {
+        center: 0.0 0.0 -3.0;
+        radius: 1.0;
+        n_meridians: 256;
+        n_parallels: 256;
+        color: 0.0 1.0 0.0;
+    }
+
+    object triangle_2 {
+        center: 0.0 0.0 -3.0;
+        scale: 1.0;
+        data: .obj triangle;
+        color: 0.0 0.0 1.0;
+    }
+}
