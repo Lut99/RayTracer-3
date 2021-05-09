@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:54
  * Last edited:
- *   05/05/2021, 17:34:30
+ *   09/05/2021, 20:39:29
  * Auto updated?
  *   Yes
  *
@@ -44,6 +44,11 @@ namespace RayTracer::Compute {
         /* Boolean that keeps track of whether or not the memory queue is supported. */
         bool supports_memory;
 
+        /* The index of the presentation family queue on the device. */
+        uint32_t presentation_index;
+        /* Boolean that keeps track of whether or not the memory queue is supported. */
+        bool supports_presentation;
+
     public:
         /* Default constructor for the DeviceQueueInfo class, which initializes this to "nothing supported". */
         DeviceQueueInfo();
@@ -60,10 +65,15 @@ namespace RayTracer::Compute {
         /* Returns whether or not the compute queue is supported by this device. */
         inline bool can_memory() const { return this->supports_memory; }
 
+        /* Returns the queue index of the GPU's presentation queue. Note that the value returned by this is undefined if can_present == false. Also not that this may be the same as any of the other queues. */
+        inline uint32_t presentation() const { return this->presentation_index; }
+        /* Returns whether or not the presentation queue is supported by this device. */
+        inline bool can_present() const { return this->supports_presentation; }
+
         /* Returns an Array with all the queue indices. The order is compute. */
-        inline Tools::Array<uint32_t> queues() const { return this->compute_index != this->memory_index ? Tools::Array<uint32_t>({ this->compute_index, this->memory_index }) : Tools::Array<uint32_t>({ this->compute_index }); }
+        Tools::Array<uint32_t> queues() const;
         /* Returns the number of queues in the class. */
-        inline uint32_t n_queues() const { return this->compute_index != this->memory_index ? 2 : 1; }
+        inline uint32_t n_queues() const { return this->compute_index == this->memory_index && this->compute_index == this->memory_index ? 1 : (this->compute_index == this->memory_index || this->compute_index == this->memory_index ? 2 : 3); }
 
     };
 

@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:30:37
  * Last edited:
- *   09/05/2021, 18:34:27
+ *   09/05/2021, 20:32:10
  * Auto updated?
  *   Yes
  *
@@ -25,7 +25,7 @@
 namespace RayTracer {
     /* The VulkanOnlineRenderer class, which renders to a window in real-time instead of a picture. */
     class VulkanOnlineRenderer: public VulkanRenderer {
-    private:
+    protected:
         
 
     public:

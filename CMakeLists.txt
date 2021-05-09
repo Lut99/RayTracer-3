@@ -7,8 +7,14 @@ cmake_minimum_required(VERSION 3.10)
 # Set the project name & version
 project(RayTracer-3 VERSION 1.0.0)
 
+# If we're on Windows, prefix the GLFW path
+IF(WIN32)
+list(APPEND CMAKE_PREFIX_PATH "C:/Program Files (x86)/GLFW/lib/cmake/glfw3")
+ENDIF()
+
 # Get the VULKAN, GLM & CppDebugger library
 find_package(Vulkan REQUIRED)
+find_package(glfw3 3.3 REQUIRED)
 find_package(CppDebugger REQUIRED)
 
 # Specify the C++-standard to use
@@ -30,7 +36,8 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra ${FLAGS}")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_DEBUG} ${FLAGS}")
 
 # Define all include directories
-SET(INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/src/lib" "${Vulkan_INCLUDE_DIRS}")
+get_target_property(GLFW_DIR glfw INTERFACE_INCLUDE_DIRECTORIES)
+SET(INCLUDE_DIRS "${PROJECT_SOURCE_DIR}/src/lib" "${Vulkan_INCLUDE_DIRS}" "${GLFW_DIR}")
 
 # Load the libraries
 add_subdirectory(src)
@@ -54,6 +61,7 @@ target_include_directories(raytracer PUBLIC "${INCLUDE_DIRS}")
 target_link_libraries(raytracer PUBLIC
                       ${EXTRA_LIBS}
                       ${Vulkan_LIBRARIES}
+                      glfw
                       cppdbg)
 
 

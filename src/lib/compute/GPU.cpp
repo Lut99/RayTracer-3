@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:49
  * Last edited:
- *   05/05/2021, 17:36:15
+ *   09/05/2021, 20:45:18
  * Auto updated?
  *   Yes
  *
@@ -147,7 +147,7 @@ static bool is_suitable_gpu(VkPhysicalDevice vk_physical_device, const Tools::Ar
     bool supports_extensions = gpu_supports_extensions(vk_physical_device, device_extensions);
 
     // With those two, return it the GPU is suitable
-    DRETURN queue_info.can_compute() && supports_extensions;
+    DRETURN queue_info.can_compute() && queue_info.can_memory() && queue_info.can_present() && supports_extensions;
 }
 
 /* Selects a suitable GPU from the ones that support Vulkan. */
@@ -195,6 +195,7 @@ DeviceQueueInfo::DeviceQueueInfo() {
     // We mark it as didn't find
     this->supports_compute = false;
     this->supports_memory = false;
+    this->supports_presentation = false;
 
     // Done!
     DRETURN;
@@ -214,7 +215,12 @@ DeviceQueueInfo::DeviceQueueInfo(VkPhysicalDevice vk_physical_device)
     // Loop through the queues to find the compute queue
     this->supports_compute = false;
     this->supports_memory = false;
+    this->supports_presentation = false;
+    bool supports_presentation;
     for (size_t i = 0; i < supported_queues.size(); i++) {
+        // First of all, we query if the queue supports presentation
+        vkGetPhysicalDeviceSurfaceSupportKHR(vk_physical_device, i, &supports_presentation);
+
         // If the current queue is the compute queue, mark that it's supported
         if (supported_queues[i].queueFlags & VK_QUEUE_COMPUTE_BIT) {
             this->compute_index = (uint32_t) i;
@@ -223,8 +229,8 @@ DeviceQueueInfo::DeviceQueueInfo(VkPhysicalDevice vk_physical_device)
         
         // If the current queue is the memory queue, mark that it's supported
         if (supported_queues[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
-            // Only note its existance if it's a) the first queue we see or b) a queue that is not the compute queue
-            if (!this->supports_memory || !(supported_queues[i].queueFlags & VK_QUEUE_COMPUTE_BIT)) {
+            // Only note its existance if it's a) the first queue we see or b) a queue that is not the compute queue & presentation queue
+            if (!this->supports_memory || (!(supported_queues[i].queueFlags & VK_QUEUE_COMPUTE_BIT)) && supports_presentation) {
                 this->memory_index = (uint32_t) i;
                 this->supports_memory = true;
             }
@@ -233,6 +239,28 @@ DeviceQueueInfo::DeviceQueueInfo(VkPhysicalDevice vk_physical_device)
 
     // Done!
     DRETURN;
+}
+
+
+
+/* Returns an Array with all the queue indices. The order is compute. */
+Tools::Array<uint32_t> DeviceQueueInfo::queues() const {
+    DENTER("Compute::DeviceQueueInfo::queues");
+
+    // Add each of the queues, but only if they differ from what is already there
+    Tools::Array<uint32_t> result;
+    if (this->supports_compute) {
+        result.push_back(this->compute_index);
+    }
+    if (this->supports_memory && this->compute_index != this->memory_index) {
+        result.push_back(this->memory_index);
+    }
+    if (this->supports_presentation && this->compute_index != this->presentation_index && this->memory_index != this->presentation_index) {
+        result.push_back(this->presentation_index);
+    }
+
+    // Done already
+    DRETURN result;
 }
 
 

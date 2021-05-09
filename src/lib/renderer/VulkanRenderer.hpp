@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:28
  * Last edited:
- *   09/05/2021, 17:38:44
+ *   09/05/2021, 20:32:05
  * Auto updated?
  *   Yes
  *
@@ -39,7 +39,7 @@ namespace RayTracer {
         /* The maximum number of descriptor sets in the desriptor pool. */
         static const constexpr uint32_t max_descriptor_sets = 1;
 
-    private:
+    protected:
         /* The instance used to select the GPU from. */
         Compute::Instance* instance;
         /* The GPU on which we work. */
@@ -66,8 +66,8 @@ namespace RayTracer {
         Compute::CommandBufferHandle staging_cb_h;
 
     public:
-        /* Constructor for the VulkanRenderer class. */
-        VulkanRenderer();
+        /* Constructor for the VulkanRenderer class, which optionally takes extra extensions to enable the Vulkan instance. */
+        VulkanRenderer(const Tools::Array<const char*>& extra_extensions = {});
         /* Copy constructor for the VulkanRenderer class. */
         VulkanRenderer(const VulkanRenderer& other);
         /* Move constructor for the VulkanRenderer class. */
