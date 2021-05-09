@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:49
  * Last edited:
- *   09/05/2021, 20:45:18
+ *   09/05/2021, 20:59:13
  * Auto updated?
  *   Yes
  *
@@ -216,11 +216,7 @@ DeviceQueueInfo::DeviceQueueInfo(VkPhysicalDevice vk_physical_device)
     this->supports_compute = false;
     this->supports_memory = false;
     this->supports_presentation = false;
-    bool supports_presentation;
     for (size_t i = 0; i < supported_queues.size(); i++) {
-        // First of all, we query if the queue supports presentation
-        vkGetPhysicalDeviceSurfaceSupportKHR(vk_physical_device, i, &supports_presentation);
-
         // If the current queue is the compute queue, mark that it's supported
         if (supported_queues[i].queueFlags & VK_QUEUE_COMPUTE_BIT) {
             this->compute_index = (uint32_t) i;
@@ -229,8 +225,8 @@ DeviceQueueInfo::DeviceQueueInfo(VkPhysicalDevice vk_physical_device)
         
         // If the current queue is the memory queue, mark that it's supported
         if (supported_queues[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
-            // Only note its existance if it's a) the first queue we see or b) a queue that is not the compute queue & presentation queue
-            if (!this->supports_memory || (!(supported_queues[i].queueFlags & VK_QUEUE_COMPUTE_BIT)) && supports_presentation) {
+            // Only note its existance if it's a) the first queue we see or b) a queue that is not a compute queue
+            if (!this->supports_memory || !(supported_queues[i].queueFlags & VK_QUEUE_COMPUTE_BIT)) {
                 this->memory_index = (uint32_t) i;
                 this->supports_memory = true;
             }
@@ -238,6 +234,36 @@ DeviceQueueInfo::DeviceQueueInfo(VkPhysicalDevice vk_physical_device)
     }
 
     // Done!
+    DRETURN;
+}
+
+
+
+/* Given a vulkan physical device and a surface, checks the device's capabilities of presenting to that surface. Updates the internal presentation index if it's found a queue. */
+void DeviceQueueInfo::check_present(VkPhysicalDevice vk_physical_device, VkSurfaceKHR vk_surface) {
+    DENTER("Compute::DeviceQeuueInfo::check_present");
+
+    // First, get up-to-date queue support of the device
+    uint32_t n_supported_queues;
+    vkGetPhysicalDeviceQueueFamilyProperties(vk_physical_device, &n_supported_queues, nullptr);
+    Array<VkQueueFamilyProperties> supported_queues(n_supported_queues);
+    vkGetPhysicalDeviceQueueFamilyProperties(vk_physical_device, &n_supported_queues, supported_queues.wdata(n_supported_queues));
+
+    // Next, check if we can find a queue that supports presenting, preferrably a unique one.
+    this->supports_presentation = false;
+    for (size_t i = 0; i < supported_queues.size(); i++) {
+        // Query the support of this queue
+        VkBool32 supports_presenting;
+        vkGetPhysicalDeviceSurfaceSupportKHR(vk_physical_device, i, vk_surface, &supports_presenting);
+
+        // If it supports presenting, then set it if a) it's the first or b) it's different from any of the other found queues
+        if (!this->supports_presentation || (this->supports_compute && this->presentation_index != this->compute_index && this->supports_memory && this->presentation_index != this->memory_index)) {
+            this->supports_presentation = true;
+            this->presentation_index = static_cast<uint32_t>(i);
+        }
+    }
+
+    // Done, updated!
     DRETURN;
 }
 
@@ -321,9 +347,7 @@ GPU::GPU(const Instance& instance, const Tools::Array<const char*>& extensions) 
     // As a quick next step, fetch the relevant device queues
     DLOG(info, "Fetching device queues...");
     vkGetDeviceQueue(this->vk_device, this->vk_physical_device_queue_info.compute(), 0, &this->vk_compute_queue);
-    if (this->vk_physical_device_queue_info.n_queues() > 1) {
-        vkGetDeviceQueue(this->vk_device, this->vk_physical_device_queue_info.memory(), 0, &this->vk_memory_queue);
-    }
+    vkGetDeviceQueue(this->vk_device, this->vk_physical_device_queue_info.memory(), 0, &this->vk_memory_queue);
 
 
 
@@ -407,6 +431,27 @@ GPU::~GPU() {
 
 
 
+/* Updates the internal queue info on whether or not the GPU can present to the given surface. */
+void GPU::check_present(VkSurfaceKHR vk_surface) {
+    DENTER("Compute::GPU::check_present");
+
+    // First, call the queue's update function
+    this->vk_physical_device_queue_info.check_present(this->vk_physical_device, vk_surface);
+
+    // Next, throw an error if cannot present
+    if (!this->vk_physical_device_queue_info.can_present()) {
+        DLOG(fatal, "GPU '" + this->name() + "' cannot present to given GLFW surface.");
+    }
+
+    // If it is, then fetch the queue
+    vkGetDeviceQueue(this->vk_device, this->vk_physical_device_queue_info.presentation(), 0, &this->vk_presentation_queue);
+
+    // Done
+    DRETURN;
+}
+
+
+
 /* Swap operator for the GPU class. */
 void Compute::swap(GPU& g1, GPU& g2) {
     DENTER("Compute::swap(GPU)");
@@ -426,6 +471,7 @@ void Compute::swap(GPU& g1, GPU& g2) {
     swap(g1.vk_device, g2.vk_device);
     swap(g1.vk_compute_queue, g2.vk_compute_queue);
     swap(g1.vk_memory_queue, g2.vk_memory_queue);
+    swap(g1.vk_presentation_queue, g2.vk_presentation_queue);
     swap(g1.vk_extensions, g2.vk_extensions);
 
     // Done

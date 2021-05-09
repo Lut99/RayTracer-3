@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:30:34
  * Last edited:
- *   09/05/2021, 20:33:43
+ *   09/05/2021, 20:59:20
  * Auto updated?
  *   Yes
  *
@@ -112,6 +112,9 @@ void VulkanOnlineRenderer::render(Camera& camera) const {
     if ((vk_result = glfwCreateWindowSurface(*this->instance, glfw_window, nullptr, &glfw_surface)) != vk_result) {
         DLOG(fatal, "Could not get GLFW window surface: " + vk_error_map[vk_result]);
     }
+
+    // Also update the GPU info for its presentation queue support
+    this->gpu->check_present(glfw_surface);
 
 
 

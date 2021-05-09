@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:54
  * Last edited:
- *   09/05/2021, 20:39:29
+ *   09/05/2021, 20:56:17
  * Auto updated?
  *   Yes
  *
@@ -69,6 +69,8 @@ namespace RayTracer::Compute {
         inline uint32_t presentation() const { return this->presentation_index; }
         /* Returns whether or not the presentation queue is supported by this device. */
         inline bool can_present() const { return this->supports_presentation; }
+        /* Given a vulkan physical device and a surface, checks the device's capabilities of presenting to that surface. Updates the internal presentation index if it's found a queue. */
+        void check_present(VkPhysicalDevice vk_physical_device, VkSurfaceKHR vk_surface);
 
         /* Returns an Array with all the queue indices. The order is compute. */
         Tools::Array<uint32_t> queues() const;
@@ -99,6 +101,8 @@ namespace RayTracer::Compute {
         VkQueue vk_compute_queue;
         /* The memory queue on the device. Might be the same. */
         VkQueue vk_memory_queue;
+        /* The presentation queue on the device. Might be the same. */
+        VkQueue vk_presentation_queue;
 
         /* The extensions enabled on the device. */
         Tools::Array<const char*> vk_extensions;
@@ -117,6 +121,9 @@ namespace RayTracer::Compute {
         inline bool operator==(const GPU& other) const { return this->vk_device == other.vk_device; }
         /* Allows the GPU to be (negated) compared with another GPU class. */
         inline bool operator!=(const GPU& other) const { return this->vk_device != other.vk_device; }
+
+        /* Updates the internal queue info on whether or not the GPU can present to the given surface. */
+       void check_present(VkSurfaceKHR vk_surface);
 
         /* Returns the name of the chosen GPU. */
         inline std::string name() const { return std::string(this->vk_physical_device_properties.deviceName); }
