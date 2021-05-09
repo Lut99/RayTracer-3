@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   05/05/2021, 18:13:39
+ *   09/05/2021, 18:26:42
  * Auto updated?
  *   Yes
  *
@@ -85,7 +85,8 @@ void populate_memory_range(VkMappedMemoryRange& memory_range, VkDeviceMemory vk_
 
 /***** BUFFER CLASS *****/
 /* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
-Buffer::Buffer(VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties) :
+Buffer::Buffer(BufferHandle handle, VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties) :
+    vk_handle(handle),
     vk_buffer(buffer),
     vk_usage_flags(vk_usage_flags),
     vk_memory(vk_memory),
@@ -355,28 +356,11 @@ MemoryPool::~MemoryPool() {
 
 
 
-/* Returns a reference to the internal buffer with the given handle. Always performs out-of-bounds checking. */
-Buffer MemoryPool::at(BufferHandle buffer) const {
-    DENTER("Compute::MemoryPool::at");
+/* Private helper function that actually performs memory allocation. Returns a reference to a UsedBlock that describes the block allocated. */
+BufferHandle MemoryPool::allocate_memory(VkDeviceSize n_bytes, const VkMemoryRequirements& mem_requirements) {
+    DENTER("allocate_memory");
 
-    // Check if it exists
-    if (this->vk_used_blocks.find(buffer) == this->vk_used_blocks.end()) {
-        DLOG(fatal, "Buffer with handle '" + std::to_string(buffer) + "' does not exist.");
-    }
-    DRETURN init_buffer(this->vk_used_blocks.at(buffer), this->vk_memory, this->vk_memory_properties);
-}
-
-
-
-/* Tries to get a new buffer from the pool of the given size and with the given flags. Applies extra checks if NDEBUG is not defined. */
-BufferHandle MemoryPool::allocate(VkDeviceSize n_bytes, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode, VkBufferCreateFlags create_flags) {
-    DENTER("Compute::MemoryPool::allocate");
-
-    // First, prepare the buffer info struct
-    VkBufferCreateInfo buffer_info;
-    populate_buffer_info(buffer_info, n_bytes, usage_flags, sharing_mode, create_flags);
-
-    // Pick a suitable memory location for this buffer; either as a new buffer or a previously deallocated one
+    // Pick a suitable memory location for this block in the array of used blocks; either as a new block or use the location of a previously allocated one
     BufferHandle result = 0;
     bool unique = false;
     while (!unique) {
@@ -385,7 +369,7 @@ BufferHandle MemoryPool::allocate(VkDeviceSize n_bytes, VkBufferUsageFlags usage
             if (result == MemoryPool::NullHandle || result == p.first) {
                 // If result is the maximum value, then throw an error
                 if (result == std::numeric_limits<BufferHandle>::max()) {
-                    DLOG(fatal, "All buffer handles have been used.");
+                    DLOG(fatal, "Buffer handle overflow; cannot allocate more buffers.");
                 }
 
                 // Otherwise, increment and re-try
@@ -395,23 +379,12 @@ BufferHandle MemoryPool::allocate(VkDeviceSize n_bytes, VkBufferUsageFlags usage
             }
         }
     }
-    
     // Reserve space in our map
     this->vk_used_blocks.insert(std::make_pair(result, UsedBlock()));
     UsedBlock& block = this->vk_used_blocks.at(result);
 
-    // Next, create the buffer struct
-    VkResult vk_result;
-    if ((vk_result = vkCreateBuffer(this->gpu, &buffer_info, nullptr, &block.vk_buffer)) != VK_SUCCESS) {
-        DLOG(fatal, "Could not create buffer: " + vk_error_map[vk_result]);
-    }
-
-    // Get the memory requirements of the buffer
-    VkMemoryRequirements mem_requirements;
-    vkGetBufferMemoryRequirements(this->gpu, block.vk_buffer, &mem_requirements);
-
     #ifndef NDEBUG
-    // Make sure the memory requirements of the buffer and that of the allocated memory align
+    // Next, make sure the given memory requirements are aligning with our internal type
     if (!(mem_requirements.memoryTypeBits & (1 << this->vk_memory_type))) {
         DLOG(fatal, "Buffer is not compatible with this memory pool.");
     }
@@ -454,20 +427,65 @@ BufferHandle MemoryPool::allocate(VkDeviceSize n_bytes, VkBufferUsageFlags usage
         #endif
     }
 
-    // With the offset, bind the memory to the new buffer
-    if ((vk_result = vkBindBufferMemory(this->gpu, block.vk_buffer, this->vk_memory, offset)) != VK_SUCCESS) {
-        DLOG(fatal, "Could not bind buffer memory: " + vk_error_map[vk_result]);
-    }
-
     // Store the chosen parameters in the buffer for easy re-creation
     block.start = offset;
     block.length = n_bytes;
     block.req_length = mem_requirements.size;
+
+    // We're done, so return the block for further initialization of the image or buffer
+    DRETURN result;
+}
+
+
+
+/* Returns a reference to the internal buffer with the given handle. Always performs out-of-bounds checking. */
+Buffer MemoryPool::at(BufferHandle h) const {
+    DENTER("Compute::MemoryPool::at");
+
+    // Check if it exists
+    if (this->vk_used_blocks.find(h) == this->vk_used_blocks.end()) {
+        DLOG(fatal, "Buffer with handle '" + std::to_string(h) + "' does not exist.");
+    }
+    DRETURN init_buffer(h, this->vk_used_blocks.at(h), this->vk_memory, this->vk_memory_properties);
+}
+
+
+
+/* Tries to get a new buffer from the pool of the given size and with the given flags. Applies extra checks if NDEBUG is not defined. */
+BufferHandle MemoryPool::allocate_h(VkDeviceSize n_bytes, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode, VkBufferCreateFlags create_flags)  {
+    DENTER("Compute::MemoryPool::allocate_h");
+
+    // First, prepare the buffer info struct
+    VkBufferCreateInfo buffer_info;
+    populate_buffer_info(buffer_info, n_bytes, usage_flags, sharing_mode, create_flags);
+
+    // Next, create the buffer struct
+    VkResult vk_result;
+    VkBuffer buffer;
+    if ((vk_result = vkCreateBuffer(this->gpu, &buffer_info, nullptr, &buffer)) != VK_SUCCESS) {
+        DLOG(fatal, "Could not create buffer: " + vk_error_map[vk_result]);
+    }
+
+    // Get the memory requirements of the buffer
+    VkMemoryRequirements mem_requirements;
+    vkGetBufferMemoryRequirements(this->gpu, buffer, &mem_requirements);
+
+    // Use the helper function to do the allocation
+    BufferHandle result = this->allocate_memory(n_bytes, mem_requirements);
+    UsedBlock& block = this->vk_used_blocks.at(result);
+
+    // With the block, bind the memory to the new buffer
+    if ((vk_result = vkBindBufferMemory(this->gpu, buffer, this->vk_memory, block.start)) != VK_SUCCESS) {
+        DLOG(fatal, "Could not bind buffer memory: " + vk_error_map[vk_result]);
+    }
+
+    // Next, populate the buffer parts of this block
+    block.vk_buffer = buffer;
     block.vk_usage_flags = usage_flags;
     block.vk_create_flags = create_flags;
     block.vk_sharing_mode = sharing_mode;
 
-    // Done, return the handle
+    // Done, so return the handle
     DRETURN result;
 }
 

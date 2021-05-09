@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 12:45:50
  * Last edited:
- *   06/05/2021, 18:08:52
+ *   09/05/2021, 17:39:32
  * Auto updated?
  *   Yes
  *
@@ -227,8 +227,7 @@ void ECS::gpu_pre_render_sphere(
 
     // Allocate the buffer itself using the largest size. We don't use the point buffer as we don't touch that data from the GPU
     size_t staging_size = max({ gsphere_size, gfaces_size });
-    BufferHandle staging_h = stage_memory_pool.allocate(staging_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    Buffer staging = stage_memory_pool[staging_h];
+    Buffer staging = stage_memory_pool.allocate(staging_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
     DINDENT;
     DLOG(info, "Staging buffer is " + std::to_string(staging_size) + " bytes.");
@@ -240,8 +239,7 @@ void ECS::gpu_pre_render_sphere(
     DLOG(info, "Copying sphere data to GPU...");
 
     // Then, allocate a uniform buffer that shall contain the sphere data
-    BufferHandle gsphere_h = device_memory_pool.allocate(gsphere_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    Buffer gsphere = device_memory_pool[gsphere_h];
+    Buffer gsphere = device_memory_pool.allocate(gsphere_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
     // Next, map the staging buffer and populate it with the correct data
     SphereData* mapped_data;
@@ -263,8 +261,7 @@ void ECS::gpu_pre_render_sphere(
     DLOG(info, "Preparing output buffer...");
 
     // Next is the vertex buffer
-    BufferHandle gfaces_h = device_memory_pool.allocate(gfaces_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    Buffer gfaces = device_memory_pool[gfaces_h];
+    Buffer gfaces = device_memory_pool.allocate(gfaces_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
     DINDENT;
     DLOG(info, "Face buffer is " + std::to_string(gfaces_size / sizeof(Face)) + " elements (" + std::to_string(gfaces_size) + " bytes)");
     DDEDENT;
@@ -299,8 +296,7 @@ void ECS::gpu_pre_render_sphere(
         );
 
         // Next, record the command buffer
-        CommandBufferHandle cb_compute_h = compute_command_pool.allocate();
-        CommandBuffer cb_compute = compute_command_pool[cb_compute_h];
+        CommandBuffer cb_compute = compute_command_pool.allocate();
         cb_compute.begin();
         pipeline.bind(cb_compute);
         descriptor_set.bind(cb_compute, pipeline.layout());
@@ -320,7 +316,7 @@ void ECS::gpu_pre_render_sphere(
         }
 
         // Deallocate the command buffer neatly
-        compute_command_pool.deallocate(cb_compute_h);
+        compute_command_pool.deallocate(cb_compute);
     }
     DDEDENT;
 
@@ -506,11 +502,11 @@ void ECS::gpu_pre_render_sphere(
     descriptor_pool.deallocate(descriptor_set);
 
     // Destroy the three main buffers
-    device_memory_pool.deallocate(gfaces_h);
-    device_memory_pool.deallocate(gsphere_h);
+    device_memory_pool.deallocate(gfaces);
+    device_memory_pool.deallocate(gsphere);
 
     // Finally, destroy the staging buffer
-    stage_memory_pool.deallocate(staging_h);
+    stage_memory_pool.deallocate(staging);
 
     // Done!
     DDEDENT;

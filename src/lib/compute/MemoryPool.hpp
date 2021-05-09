@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:35
  * Last edited:
- *   05/05/2021, 17:42:07
+ *   09/05/2021, 18:24:17
  * Auto updated?
  *   Yes
  *
@@ -25,12 +25,15 @@
 #include "GPU.hpp"
 
 namespace RayTracer::Compute {
-    /* Handle for a Buffer, which is used to reference buffers. */
+    /* Handle for buffer objects, which is used to reference buffers. */
     using BufferHandle = uint32_t;
 
     /* The Buffer class, which is a reference to a Buffer allocated by the MemoryPool. Do NOT change any fields in this class directly, as memory etc is managed by the memory pool. */
     class Buffer {
     private:
+        /* Handle for this buffer object. */
+        BufferHandle vk_handle;
+
         /* The actual VkBuffer object constructed. */
         VkBuffer vk_buffer;
 
@@ -49,7 +52,7 @@ namespace RayTracer::Compute {
         VkMemoryPropertyFlags vk_memory_properties;
 
         /* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
-        Buffer(VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties);
+        Buffer(BufferHandle handle, VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties);
         
         /* Mark the MemoryPool as friend. */
         friend class MemoryPool;
@@ -80,6 +83,10 @@ namespace RayTracer::Compute {
         inline VkBuffer buffer() const { return this->vk_buffer; }
         /* Implicit retrieval of the internal buffer object. */
         inline operator VkBuffer() const { return this->vk_buffer; }
+        /* Explicit retrieval of the internal handle. */
+        inline BufferHandle handle() const { return this->vk_handle; }
+        /* Implicit retrieval of the internal handle. */
+        inline operator BufferHandle() const { return this->vk_handle; }
 
     };
 
@@ -106,7 +113,6 @@ namespace RayTracer::Compute {
 
             /* The actual VkBuffer object that is bound to this memory location. */
             VkBuffer vk_buffer;
-
             /* The usage flags of the internal buffer. */
             VkBufferUsageFlags vk_usage_flags;
             /* The create flags used to create this buffer. */
@@ -138,7 +144,10 @@ namespace RayTracer::Compute {
 
 
         /* Private helper function that takes a UsedBlock, and uses it to initialize the given buffer. */
-        inline static Buffer init_buffer(const UsedBlock& used_block, VkDeviceMemory vk_memory, VkMemoryPropertyFlags memory_properties) { return Buffer(used_block.vk_buffer, used_block.vk_usage_flags, vk_memory, used_block.start, used_block.length, used_block.req_length, memory_properties); }
+        inline static Buffer init_buffer(BufferHandle handle, const UsedBlock& used_block, VkDeviceMemory vk_memory, VkMemoryPropertyFlags memory_properties) { return Buffer(handle, used_block.vk_buffer, used_block.vk_usage_flags, vk_memory, used_block.start, used_block.length, used_block.req_length, memory_properties); }
+
+        /* Private helper function that actually performs memory allocation. Returns a reference to a UsedBlock that describes the block allocated. */
+        BufferHandle allocate_memory(VkDeviceSize n_bytes, const VkMemoryRequirements& mem_requirements);
 
     public:
         /* The null handle for the pool. */
@@ -155,12 +164,14 @@ namespace RayTracer::Compute {
         ~MemoryPool();
 
         /* Returns a reference to the internal buffer object with the given handle. Does not perform out-of-bounds checking. */
-        inline Buffer operator[](BufferHandle buffer) const { return init_buffer(this->vk_used_blocks.at(buffer), this->vk_memory, this->vk_memory_properties); }
+        inline Buffer operator[](BufferHandle buffer) const { return init_buffer(buffer, this->vk_used_blocks.at(buffer), this->vk_memory, this->vk_memory_properties); }
         /* Returns a reference to the internal buffer with the given handle. Always performs out-of-bounds checking. */
         Buffer at(BufferHandle buffer) const;
 
         /* Tries to get a new buffer from the pool of the given size and with the given flags. Applies extra checks if NDEBUG is not defined. */
-        BufferHandle allocate(VkDeviceSize n_bytes, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode = VK_SHARING_MODE_EXCLUSIVE, VkBufferCreateFlags create_flags = 0);
+        inline Buffer allocate(VkDeviceSize n_bytes, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode = VK_SHARING_MODE_EXCLUSIVE, VkBufferCreateFlags create_flags = 0) { return this->operator[](this->allocate_h(n_bytes, usage_flags, sharing_mode, create_flags)); }
+        /* Tries to get a new buffer from the pool of the given size and with the given flags. Applies extra checks if NDEBUG is not defined. */
+        BufferHandle allocate_h(VkDeviceSize n_bytes, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode = VK_SHARING_MODE_EXCLUSIVE, VkBufferCreateFlags create_flags = 0);
         /* Deallocates the buffer with the given handle. Does not throw an error if the handle doesn't exist, unless NDEBUG is not defined. */
         void deallocate(BufferHandle buffer);
 

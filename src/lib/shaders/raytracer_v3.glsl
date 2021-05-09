@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 13:59:41
  * Last edited:
- *   09/05/2021, 17:41:46
+ *   09/05/2021, 18:25:12
  * Auto updated?
  *   Yes
  *
@@ -12,9 +12,18 @@
  *   Contains the code for the very very first version of the raytracer,
  *   that simply sends out one ray per pixel and does not really do
  *   bouncing.
+ *
+ *   The third version of the RayTracer does, however, already include anti-
+ *   aliasing by sending multiple rays per pixel.
 **/
 
 #version 450
+#extension GL_GOOGLE_include_directive: require
+
+/* Includes. */
+#include "random_v1.glsl"
+
+
 
 /* Define the block size(s). */
 layout (local_size_x = 32, local_size_y = 32) in;
@@ -55,7 +64,7 @@ layout(std430, set = 0, binding = 0) buffer Frame {
 } frame;
 
 // The input data for the camera
-layout(std430, set = 0, binding = 1) buffer Camera {
+layout(std140, set = 0, binding = 1) uniform Camera {
     /* Vector placing the origin (middle) of the camera viewport in the world. */
     vec3 origin;
     /* Vector determining the horizontal line of the camera viewport in the game world, and also its conceptual size. */

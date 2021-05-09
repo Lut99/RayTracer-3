@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   06/05/2021, 18:21:10
+ *   09/05/2021, 18:27:51
  * Auto updated?
  *   Yes
  *
@@ -102,7 +102,7 @@ VulkanRenderer::VulkanRenderer() :
     // Initialize the descriptor set layout for the raytrace call
     this->raytrace_dsl = new DescriptorSetLayout(*this->gpu);
     this->raytrace_dsl->add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
-    this->raytrace_dsl->add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
+    this->raytrace_dsl->add_binding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
     this->raytrace_dsl->add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
     this->raytrace_dsl->add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
     this->raytrace_dsl->finalize();
@@ -320,16 +320,12 @@ void VulkanRenderer::render(Camera& cam) const {
     // We begin by allocating the buffers required for the main data
     size_t vertices_size = this->entity_faces.size() * sizeof(GFace);
     size_t points_size = this->entity_vertices.size() * sizeof(glm::vec4);
-    BufferHandle vertices_h = this->device_memory_pool->allocate(vertices_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    BufferHandle points_h = this->device_memory_pool->allocate(points_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    Buffer vertices = (*this->device_memory_pool)[vertices_h];
-    Buffer points = (*this->device_memory_pool)[points_h];
+    Buffer vertices = this->device_memory_pool->allocate(vertices_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    Buffer points = this->device_memory_pool->allocate(points_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
     // Next, get two staging buffers so we can (hopefully) do things concurrently
-    BufferHandle vertices_staging_h = this->stage_memory_pool->allocate(vertices_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    BufferHandle points_staging_h = this->stage_memory_pool->allocate(points_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    Buffer vertices_staging = (*this->stage_memory_pool)[vertices_staging_h];
-    Buffer points_staging = (*this->stage_memory_pool)[points_staging_h];
+    Buffer vertices_staging = this->stage_memory_pool->allocate(vertices_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Buffer points_staging = this->stage_memory_pool->allocate(points_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
     // Next, fill the vertex & point buffers with the allocated staging buffers
     CommandBuffer staging_cb = (*this->memory_command_pool)[this->staging_cb_h];
@@ -337,8 +333,8 @@ void VulkanRenderer::render(Camera& cam) const {
     points.set(*this->gpu, points_staging, staging_cb, this->gpu->memory_queue(), (void*) this->entity_vertices.rdata(), points_size);
 
     // Once that's done, deallocate the staging buffers again
-    this->stage_memory_pool->deallocate(vertices_staging_h);
-    this->stage_memory_pool->deallocate(points_staging_h);
+    this->stage_memory_pool->deallocate(vertices_staging);
+    this->stage_memory_pool->deallocate(points_staging);
 
 
 
@@ -349,14 +345,11 @@ void VulkanRenderer::render(Camera& cam) const {
     uint32_t width = cam.w(), height = cam.h();
     size_t camera_size = sizeof(GCameraData);
     size_t frame_size = width * height * sizeof(glm::vec4);
-    BufferHandle camera_h = this->device_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    BufferHandle frame_h = this->device_memory_pool->allocate(frame_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    Buffer camera = (*this->device_memory_pool)[camera_h];
-    Buffer frame = (*this->device_memory_pool)[frame_h];
+    Buffer camera = this->device_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    Buffer frame = this->device_memory_pool->allocate(frame_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
     // Next, get a staging buffer for the camera only
-    BufferHandle camera_staging_h = this->stage_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    Buffer camera_staging = (*this->stage_memory_pool)[camera_staging_h];
+    Buffer camera_staging = this->stage_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
     // Map the staging buffer to host-reachable memory
     void* camera_staging_map;
@@ -376,7 +369,7 @@ void VulkanRenderer::render(Camera& cam) const {
     camera_staging.copyto(staging_cb, this->gpu->memory_queue(), camera);
 
     // Once that's done, deallocate the staging buffer for the camera.
-    this->stage_memory_pool->deallocate(camera_staging_h);
+    this->stage_memory_pool->deallocate(camera_staging);
 
 
 
@@ -385,7 +378,7 @@ void VulkanRenderer::render(Camera& cam) const {
     // Allocate a DescriptorSet & set all bindings
     DescriptorSet descriptor_set = this->descriptor_pool->allocate(*this->raytrace_dsl);
     descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0, Tools::Array<Buffer>({ frame }));
-    descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, Tools::Array<Buffer>({ camera }));
+    descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, Tools::Array<Buffer>({ camera }));
     descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, Tools::Array<Buffer>({ vertices }));
     descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, Tools::Array<Buffer>({ points }));
 
@@ -399,7 +392,7 @@ void VulkanRenderer::render(Camera& cam) const {
     DLOG(info, "About to render " + std::to_string(this->entity_faces.size()) + " faces");
     Pipeline pipeline(
         *this->gpu,
-        Shader(*this->gpu, Tools::get_executable_path() + "/shaders/raytracer_v2.spv"),
+        Shader(*this->gpu, Tools::get_executable_path() + "/shaders/raytracer_v3.spv"),
         Tools::Array<DescriptorSetLayout>({ *this->raytrace_dsl }),
         std::unordered_map<uint32_t, std::tuple<uint32_t, void*>>({ { 0, std::make_tuple(sizeof(uint32_t), (void*) &width) }, { 1, std::make_tuple(sizeof(uint32_t), (void*) &height) } })
     );
@@ -407,8 +400,7 @@ void VulkanRenderer::render(Camera& cam) const {
     
     // Next, start recording the compute command buffer
     DLOG(info, "Recording command buffer...");
-    CommandBufferHandle cb_compute_h = this->compute_command_pool->allocate();
-    CommandBuffer cb_compute = (*this->compute_command_pool)[cb_compute_h];
+    CommandBuffer cb_compute = this->compute_command_pool->allocate();
     cb_compute.begin();
     pipeline.bind(cb_compute);
     descriptor_set.bind(cb_compute, pipeline.layout());
@@ -434,8 +426,7 @@ void VulkanRenderer::render(Camera& cam) const {
     DLOG(info, "Retrieving frame...");
     
     // Get a staging buffer for the frame
-    BufferHandle frame_staging_h = this->stage_memory_pool->allocate(frame_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    Buffer frame_staging = (*this->stage_memory_pool)[frame_staging_h];
+    Buffer frame_staging = this->stage_memory_pool->allocate(frame_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
     // Copy the contents of the frame buffer back to the CPU
     frame.copyto(staging_cb, this->gpu->memory_queue(), frame_staging);
@@ -447,26 +438,6 @@ void VulkanRenderer::render(Camera& cam) const {
     // Copy the vectors manually, to convert from vec4 to vec3
     for (uint32_t p = 0; p < width * height; p++) {
         cam.get_frame().d()[p] = ((glm::vec4*) frame_staging_map)[p];
-        // if (p == 0) {
-        //     printf("Shader reports number of vertices: %f\n", ((glm::vec4*) frame_staging_map)[p].x);
-        //     printf("First point: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z, ((glm::vec4*) frame_staging_map)[p].w);
-        // } else if (p == 1) {
-        //     printf("Second point: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
-        // } else if (p == 2) {
-        //     printf("Third point: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
-        // } else if (p == 3) {
-        //     printf("Normal: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
-        // } else if (p == 4) {
-        //     printf("Color: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
-        // } else if (p == 5) {
-        //     printf("Camera origin: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
-        // } else if (p == 6) {
-        //     printf("Camera horizontal: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
-        // } else if (p == 7) {
-        //     printf("Camera vertical: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
-        // } else if (p == 8) {
-        //     printf("Camera lower left corner: (%f %f %f)\n", ((glm::vec4*) frame_staging_map)[p].x, ((glm::vec4*) frame_staging_map)[p].y, ((glm::vec4*) frame_staging_map)[p].z);
-        // }
     }
    
     // When done, flush and unmap
@@ -474,7 +445,7 @@ void VulkanRenderer::render(Camera& cam) const {
     frame_staging.unmap(*this->gpu);
 
     // Once we're done, we can clean the frame staging buffer
-    this->stage_memory_pool->deallocate(frame_staging_h);
+    this->stage_memory_pool->deallocate(frame_staging);
     
 
 
@@ -482,16 +453,16 @@ void VulkanRenderer::render(Camera& cam) const {
     DLOG(info, "Finishing up...");
 
     // Cleanup the command buffer
-    this->compute_command_pool->deallocate(cb_compute_h);
+    this->compute_command_pool->deallocate(cb_compute);
 
     // Cleanup the descriptor set
     this->descriptor_pool->deallocate(descriptor_set);
 
     // Cleanup the GPU buffers
-    this->device_memory_pool->deallocate(frame_h);
-    this->device_memory_pool->deallocate(camera_h);
-    this->device_memory_pool->deallocate(points_h);
-    this->device_memory_pool->deallocate(vertices_h);
+    this->device_memory_pool->deallocate(frame);
+    this->device_memory_pool->deallocate(camera);
+    this->device_memory_pool->deallocate(points);
+    this->device_memory_pool->deallocate(vertices);
 
     // Done!
     DRETURN;

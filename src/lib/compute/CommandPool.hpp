@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 13:03:55
  * Last edited:
- *   30/04/2021, 15:04:17
+ *   09/05/2021, 17:35:44
  * Auto updated?
  *   Yes
  *
@@ -30,11 +30,14 @@ namespace RayTracer::Compute {
     /* The CommandBuffer class, which acts as a reference to an allocated CommandBuffer in the CommandPool. Can thus be comfortably deallocated and then later re-acquired by its matching handle. */
     class CommandBuffer {
     private:
+        /* The handle for this buffer. */
+        CommandBufferHandle vk_handle;
+
         /* The VkCommandBuffer object that we wrap. */
         VkCommandBuffer vk_command_buffer;
 
-        /* Private constructor for the CommandBuffer, which only takes the VkCommandBuffer object to wrap. */
-        CommandBuffer(VkCommandBuffer vk_command_buffer);
+        /* Private constructor for the CommandBuffer, which only takes the handle to this buffer and the VkCommandBuffer object to wrap. */
+        CommandBuffer(CommandBufferHandle handle, VkCommandBuffer vk_command_buffer);
 
         /* Mark the CommandPool class as friend. */
         friend class CommandPool;
@@ -51,6 +54,10 @@ namespace RayTracer::Compute {
         inline VkCommandBuffer command_buffer() const { return this->vk_command_buffer; }
         /* Implicitly returns the internal VkCommandBuffer object. */
         inline operator VkCommandBuffer() const { return this->vk_command_buffer; }
+        /* Explicitly returns the internal handle. */
+        inline CommandBufferHandle handle() const { return this->vk_handle; }
+        /* Implicitly returns the internal handle. */
+        inline operator CommandBufferHandle() const { return this->vk_handle; }
 
     };
 
@@ -84,14 +91,18 @@ namespace RayTracer::Compute {
         ~CommandPool();
 
         /* Returns a CommandBuffer from the given handle, which can be used as a CommandBuffer. Does not perform any checks on the handle validity. */
-        inline CommandBuffer operator[](CommandBufferHandle buffer) const { return CommandBuffer(this->vk_command_buffers.at(buffer)); }
+        inline CommandBuffer operator[](CommandBufferHandle buffer) const { return CommandBuffer(buffer, this->vk_command_buffers.at(buffer)); }
         /* Returns a CommandBuffer from the given handle, which can be used as a CommandBuffer. Does perform checks on the handle validity. */
         CommandBuffer at(CommandBufferHandle buffer) const;
 
+        /* Allocates a single, new command buffer of the given level. Returns a new buffer object. */
+        inline CommandBuffer allocate(VkCommandBufferLevel buffer_level = VK_COMMAND_BUFFER_LEVEL_PRIMARY) { return this->operator[](this->allocate_h(buffer_level)); }
         /* Allocates a single, new command buffer of the given level. Returns by handle. */
-        CommandBufferHandle allocate(VkCommandBufferLevel buffer_level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+        CommandBufferHandle allocate_h(VkCommandBufferLevel buffer_level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
         /* Allocates N new command buffers of the given level. Returns by handles. */
-        Tools::Array<CommandBufferHandle> nallocate(uint32_t n_buffers, VkCommandBufferLevel buffer_level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+        Tools::Array<CommandBuffer> nallocate(uint32_t n_buffers, VkCommandBufferLevel buffer_level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
+        /* Allocates N new command buffers of the given level. Returns new buffer objects. */
+        Tools::Array<CommandBufferHandle> nallocate_h(uint32_t n_buffers, VkCommandBufferLevel buffer_level = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
         /* Deallocates the CommandBuffer behind the given handle. Note that all buffers are deallocated automatically when the CommandPool is destructed, but this could save you memory. */
         void deallocate(CommandBufferHandle buffer);
 

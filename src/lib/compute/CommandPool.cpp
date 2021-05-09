@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 13:03:50
  * Last edited:
- *   30/04/2021, 15:05:05
+ *   09/05/2021, 17:36:35
  * Auto updated?
  *   Yes
  *
@@ -105,10 +105,13 @@ static void populate_submit_info(VkSubmitInfo& submit_info, const VkCommandBuffe
 
 
 /***** COMMANDBUFFER CLASS *****/
-/* Private constructor for the CommandBuffer, which only takes the VkCommandBuffer object to wrap. */
-CommandBuffer::CommandBuffer(VkCommandBuffer vk_command_buffer) :
+/* Private constructor for the CommandBuffer, which only takes the handle to this buffer and the VkCommandBuffer object to wrap. */
+CommandBuffer::CommandBuffer(CommandBufferHandle handle, VkCommandBuffer vk_command_buffer) :
+    vk_handle(handle),
     vk_command_buffer(vk_command_buffer)
 {}
+
+
 
 /* Begins recording the command buffer. Overwrites whatever is already recorded here, for some reason. Takes optional usage flags for this recording. */
 void CommandBuffer::begin(VkCommandBufferUsageFlags usage_flags) const {
@@ -268,14 +271,14 @@ CommandBuffer CommandPool::at(CommandBufferHandle buffer) const {
     }
 
     // If it does, return it
-    return CommandBuffer((*iter).second);
+    return CommandBuffer(buffer, (*iter).second);
 }
 
 
 
 /* Allocates a single, new command buffer of the given level. Returns by handle. */
-CommandBufferHandle CommandPool::allocate(VkCommandBufferLevel buffer_level) {
-    DENTER("Compute::CommandPool::allocate");
+CommandBufferHandle CommandPool::allocate_h(VkCommandBufferLevel buffer_level) {
+    DENTER("Compute::CommandPool::allocate_h");
 
     // Pick a suitable memory location for this buffer; either as a new buffer or a previously deallocated one
     CommandBufferHandle result = 0;
@@ -309,9 +312,26 @@ CommandBufferHandle CommandPool::allocate(VkCommandBufferLevel buffer_level) {
     DRETURN result;
 }
 
-/* Allocates N new command buffers of the given level. Returns by handles. */
-Tools::Array<CommandBufferHandle> CommandPool::nallocate(uint32_t n_buffers, VkCommandBufferLevel buffer_level) {
+/* Allocates a single, new command buffer of the given level. Returns new buffer objects. */
+Tools::Array<CommandBuffer> CommandPool::nallocate(uint32_t n_buffers, VkCommandBufferLevel buffer_level) {
     DENTER("Compute::CommandPool::nallocate");
+    
+    // Allocate a list of handles
+    Tools::Array<CommandBufferHandle> handles = this->nallocate_h(n_buffers, buffer_level);
+    // Create a list to return
+    Tools::Array<CommandBuffer> to_return(handles.size());
+    // Convert all of the handles to buffers
+    for (size_t i = 0; i < handles.size(); i++) {
+        to_return.push_back(this->operator[](handles[i]));
+    }
+
+    // Done, return
+    DRETURN to_return;
+}
+
+/* Allocates N new command buffers of the given level. Returns by handles. */
+Tools::Array<CommandBufferHandle> CommandPool::nallocate_h(uint32_t n_buffers, VkCommandBufferLevel buffer_level) {
+    DENTER("Compute::CommandPool::nallocate_h");
 
     // Pick n_buffers suitable memory locations for this buffer; either as a new buffer or a previously deallocated one
     Tools::Array<CommandBufferHandle> result;
