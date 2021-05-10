@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:40:10
  * Last edited:
- *   10/05/2021, 16:46:23
+ *   10/05/2021, 17:03:23
  * Auto updated?
  *   Yes
  *
@@ -41,8 +41,16 @@ namespace RayTracer::Compute {
         VkPresentModeKHR vk_surface_present_mode;
         /* The current size of the swapchain frames. */
         VkExtent2D vk_surface_extent;
-        /* The number of images that we will have in the swapchain. */
-        uint32_t vk_image_count;
+        
+        /* The number of images that are actually created in the swapchain. */
+        uint32_t vk_actual_image_count;
+        /* The number of images that we want to have in the swapchain. */
+        uint32_t vk_desired_image_count;
+
+        /* The images part of the swapchain. Will be variable in size. */
+        Tools::Array<VkImage> vk_swapchain_images;
+        /* Images views to the images created with the swapchain. */
+        Tools::Array<VkImageView> vk_swapchain_views;
 
     public:
         /* Constructor for the Swapchain class, which takes the GPU where it will be constructed and the window to which it shall present. */
@@ -54,7 +62,8 @@ namespace RayTracer::Compute {
         /* Destructor for the Swapchain class. */
         ~Swapchain();
 
-
+        /* Returns the number of images in the swapchain. */
+        inline uint32_t size() const { return this->vk_actual_image_count; }
 
         /* Copy assignment operator for the Swapchain class. */
         inline Swapchain& operator=(const Swapchain& other) { return *this = Swapchain(other); }
