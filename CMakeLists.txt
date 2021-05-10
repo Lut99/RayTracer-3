@@ -22,11 +22,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Set the option of the backend to use
-set(RENDERER_BACKEND "Vulkan" CACHE STRING "Define which backend to use for renderer. Options are: 'Vulkan'")
+set(RENDERER_BACKEND "Vulkan" CACHE STRING "Define which backend to use for renderer. Options are: 'Vulkan', 'VulkanOnline' or 'Sequential'")
 
 # Convert the option to flags
 set(FLAGS "")
-if(RENDERER_BACKEND MATCHES "^Vulkan$")
+if(RENDERER_BACKEND MATCHES "^Vulkan(Online)?$")
 set(FLAGS "${FLAGS} -DENABLE_VULKAN")
 endif()
 

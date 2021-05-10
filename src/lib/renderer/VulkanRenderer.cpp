@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   09/05/2021, 20:26:34
+ *   10/05/2021, 13:26:59
  * Auto updated?
  *   Yes
  *
@@ -59,22 +59,17 @@ struct GCameraData {
 
 /***** VULKANRENDERER CLASS *****/
 /* Constructor for the VulkanRenderer class. */
-VulkanRenderer::VulkanRenderer(const Tools::Array<const char*>& extra_extensions) :
+VulkanRenderer::VulkanRenderer() :
     Renderer()
 {
     DENTER("VulkanRenderer::VulkanRenderer");
     DLOG(info, "Initializing the Vulkan-based renderer...");
     DINDENT;
 
-    // First, create a new instance, by merging the global list and the extra extensions
-    Tools::Array<const char*> extensions(instance_extensions);
-    extensions.reserve(extensions.size() + extra_extensions.size());
-    for (size_t i = 0; i < extra_extensions.size(); i++) {
-        extensions.push_back(extra_extensions[i]);
-    }
-    this->instance = new Instance(extensions);
+    // First, create a new instance
+    this->instance = new Instance();
 
-    // First, initialize the gpu
+    //  Next, initialize the GPU
     this->gpu = new GPU(*this->instance);
 
     // Before we continue, select suitable memory types for each pool.

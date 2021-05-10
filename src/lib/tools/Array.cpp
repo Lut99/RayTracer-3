@@ -128,6 +128,44 @@ template<class T, bool D, bool C, bool M> Array<T, D, C, M>::~Array() {
 
 
 
+/* Adds a whole array worth of new elements to the array, copying them. Note that this requires the elements to be copy constructible. */
+template <class T, bool D, bool C, bool M> Array<T>& Array<T, D, C, M>::operator+=(const Array<T>& elems) {
+    // Make sure that the array has enough size
+    if (this->length + elems.length > this->max_length) {
+        this->reserve(this->length + elems.length);
+    }
+
+    // Add the new elements to the end of the array
+    for (size_t i = 0; i < elems.size(); i++) {
+        new(this->elements + this->length++) T(elems.elements[i]);
+    }
+
+    // When done, return ourselves
+    return *this;
+}
+
+/* Adds a whole array worth of new elements to the array, leaving the original array in an unused state (moving it). Note that this does not require the elements to be move constructible. */
+template <class T, bool D, bool C, bool M> Array<T>& Array<T, D, C, M>::operator+=(Array<T>&& elems) {
+    // For this one, early quit if the other's size is 0
+    if (elems.length == 0) { return *this; }
+
+    // Otherwise, resize ourselves to the correct size
+    this->reserve(this->length + elems.length);
+
+    // Copy the elements over quick 'n' dirty
+    memmove(this->elements + this->length, elems.elements, elems.length * sizeof(T));
+    this->length += elems.length;
+
+    // Already deallocate the other's list without destroying the elements, to prevent deallocation
+    free(elems.elements);
+    elems.elements = nullptr;
+
+    // When done, return ourselves
+    return *this;
+}
+
+
+
 /* Adds a new element of type T to the array, copying it. Note that this requires the element to be copy constructible. */
 template<class T, bool D, bool C, bool M> void Array<T, D, C, M>::push_back(const T& elem) {
     // Make sure that the array has enough size

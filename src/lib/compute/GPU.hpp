@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:54
  * Last edited:
- *   09/05/2021, 20:56:17
+ *   10/05/2021, 14:21:06
  * Auto updated?
  *   Yes
  *
@@ -81,6 +81,33 @@ namespace RayTracer::Compute {
 
 
 
+    /* The SwapchainInfo class, which describes the kind of swapchains the GPU supports. */
+    class SwapchainInfo {
+    private:
+        /* The capabilities of this device for the given surface. */
+        VkSurfaceCapabilitiesKHR vk_capabilities;
+        /* The formats supported by this device for this surface. */
+        Tools::Array<VkSurfaceFormatKHR> vk_formats;
+        /* The present modes supported by this device for this surface. */
+        Tools::Array<VkPresentModeKHR> vk_present_modes;
+
+    public:
+        /* Default constructor for the SwapchainInfo class, which initializes this to "nothing supported". */
+        SwapchainInfo();
+        /* Constructor for the SwapchainInfo class, which takes a VkPhysicalDevice and a VkSurfaceKHR to populate itself appropriately. */
+        SwapchainInfo(VkPhysicalDevice vk_physical_device, VkSurfaceKHR vk_surface);
+
+        /* Returns the capabilities of this device as a constant reference. */
+        inline const VkSurfaceCapabilitiesKHR& capabilities() const { return this->vk_capabilities; }
+        /* Returns a constant reference to the list of surface formats. */
+        inline const Tools::Array<VkSurfaceFormatKHR>& formats() const { return this->vk_formats; }
+        /* Returns a constant reference to the list of present modes. */
+        inline const Tools::Array<VkPresentModeKHR>& present_modes() const { return this->vk_present_modes; }
+
+    };
+
+
+
     /* The GPU class, which is the main interface to our Vulkan compute library implementation. */
     class GPU {
     public:
@@ -103,6 +130,9 @@ namespace RayTracer::Compute {
         VkQueue vk_memory_queue;
         /* The presentation queue on the device. Might be the same. */
         VkQueue vk_presentation_queue;
+        
+        /* The swapchain support of this device. */
+        SwapchainInfo vk_swapchain_info;
 
         /* The extensions enabled on the device. */
         Tools::Array<const char*> vk_extensions;
@@ -129,6 +159,8 @@ namespace RayTracer::Compute {
         inline std::string name() const { return std::string(this->vk_physical_device_properties.deviceName); }
         /* Returns the queue information of the chosen GPU. */
         inline DeviceQueueInfo queue_info() const { return this->vk_physical_device_queue_info; }
+        /* Returns the swapchain information of the chosen GPU. */
+        inline SwapchainInfo swapchain_info() const { return this->vk_swapchain_info; }
         
         /* Explicitly provides (read-only) access to the internal vk_physical_device object. */
         inline VkPhysicalDevice physical_device() const { return this->vk_physical_device; }
@@ -143,6 +175,8 @@ namespace RayTracer::Compute {
         inline VkQueue compute_queue() const { return this->vk_compute_queue; }
         /* Explicitly provides (read-only) access to the internal vk_memory_queue object. */
         inline VkQueue memory_queue() const { return this->vk_memory_queue; }
+        /* Explicitly provides (read-only) access to the internal vk_memory_queue object. */
+        inline VkQueue present_queue() const { return this->vk_presentation_queue; }
 
         /* Copy assignment operator for the GPU class. */
         inline GPU& operator=(const GPU& other) { return *this = GPU(other); }

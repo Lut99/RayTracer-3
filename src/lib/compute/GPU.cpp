@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:49
  * Last edited:
- *   09/05/2021, 20:59:13
+ *   10/05/2021, 16:34:27
  * Auto updated?
  *   Yes
  *
@@ -120,7 +120,7 @@ static bool gpu_supports_extensions(VkPhysicalDevice vk_physical_device, const T
         // Try to find it in the list of supported extensions
         bool found = false;
         for (size_t j = 0; j < supported_extensions.size(); j++) {
-            if (strcmp(extension, supported_extensions[j].extensionName) != 0) {
+            if (strcmp(extension, supported_extensions[j].extensionName) == 0) {
                 // Dope, continue
                 found = true;
                 break;
@@ -128,6 +128,7 @@ static bool gpu_supports_extensions(VkPhysicalDevice vk_physical_device, const T
         }
         if (!found) {
             // This extension is missing!
+            DLOG(warning, "GPU does not support extension '" + std::string(extension) + "'");
             DRETURN false;
         }
     }
@@ -147,7 +148,7 @@ static bool is_suitable_gpu(VkPhysicalDevice vk_physical_device, const Tools::Ar
     bool supports_extensions = gpu_supports_extensions(vk_physical_device, device_extensions);
 
     // With those two, return it the GPU is suitable
-    DRETURN queue_info.can_compute() && queue_info.can_memory() && queue_info.can_present() && supports_extensions;
+    DRETURN queue_info.can_compute() && queue_info.can_memory() && supports_extensions;
 }
 
 /* Selects a suitable GPU from the ones that support Vulkan. */
@@ -263,6 +264,11 @@ void DeviceQueueInfo::check_present(VkPhysicalDevice vk_physical_device, VkSurfa
         }
     }
 
+    // If we found a queue that we like, then dive deeper into the formats available
+    if (this->supports_presentation) {
+        
+    }
+
     // Done, updated!
     DRETURN;
 }
@@ -287,6 +293,45 @@ Tools::Array<uint32_t> DeviceQueueInfo::queues() const {
 
     // Done already
     DRETURN result;
+}
+
+
+
+
+
+/***** SWAPCHAININFO CLASS *****/
+/* Default constructor for the SwapchainInfo class, which initializes this to "nothing supported". */
+SwapchainInfo::SwapchainInfo() :
+    vk_capabilities({})
+{}
+
+/* Constructor for the SwapchainInfo class, which takes a VkPhysicalDevice and a VkSurfaceKHR to populate itself appropriately. */
+SwapchainInfo::SwapchainInfo(VkPhysicalDevice vk_physical_device, VkSurfaceKHR vk_surface) {
+    DENTER("SwapchainInfo::SwapchainInfo(gpu)");
+
+    // First, getch the capabilities of the device/surface pair
+    VkResult vk_result;
+    if ((vk_result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vk_physical_device, vk_surface, &this->vk_capabilities)) != VK_SUCCESS) {
+        DLOG(fatal, "Could not get physical device surface capabilities: " + vk_error_map[vk_result]);
+    }
+
+    // Next, get the list of formats
+    uint32_t n_formats;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(vk_physical_device, vk_surface, &n_formats, nullptr);
+    if (n_formats > 0) {
+        this->vk_formats.reserve(n_formats);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(vk_physical_device, vk_surface, &n_formats, this->vk_formats.wdata(n_formats));
+    }
+
+    // Finally, get the list of present modes
+    uint32_t n_modes;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(vk_physical_device, vk_surface, &n_modes, nullptr);
+    if (n_modes > 0) {
+        this->vk_present_modes.reserve(n_modes);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(vk_physical_device, vk_surface, &n_modes, this->vk_present_modes.wdata(n_modes));
+    }
+
+    DLEAVE;
 }
 
 
@@ -344,6 +389,17 @@ GPU::GPU(const Instance& instance, const Tools::Array<const char*>& extensions) 
 
 
 
+    #ifndef NDEBUG
+    // For debugging purposes, print the extensions enabled
+    DINDENT;
+    for (size_t i = 0; i < extensions.size(); i++) {
+        DLOG(info, "Enabled extension '" + std::string(extensions[i]) + "'");
+    }
+    DDEDENT;
+    #endif
+
+
+
     // As a quick next step, fetch the relevant device queues
     DLOG(info, "Fetching device queues...");
     vkGetDeviceQueue(this->vk_device, this->vk_physical_device_queue_info.compute(), 0, &this->vk_compute_queue);
@@ -362,6 +418,7 @@ GPU::GPU(const GPU& other) :
     vk_physical_device(other.vk_physical_device),
     vk_physical_device_properties(other.vk_physical_device_properties),
     vk_physical_device_queue_info(other.vk_physical_device_queue_info),
+    vk_swapchain_info(other.vk_swapchain_info),
     vk_extensions(other.vk_extensions)
 {
     DENTER("Compute::GPU::GPU(copy)");
@@ -404,6 +461,8 @@ GPU::GPU(GPU&& other) :
     vk_device(other.vk_device),
     vk_compute_queue(other.vk_compute_queue),
     vk_memory_queue(other.vk_memory_queue),
+    vk_presentation_queue(other.vk_presentation_queue),
+    vk_swapchain_info(other.vk_swapchain_info),
     vk_extensions(other.vk_extensions)
 {
     // Set the device to a nullptr so the now useless object doesn't destruct it
@@ -440,10 +499,17 @@ void GPU::check_present(VkSurfaceKHR vk_surface) {
 
     // Next, throw an error if cannot present
     if (!this->vk_physical_device_queue_info.can_present()) {
-        DLOG(fatal, "GPU '" + this->name() + "' cannot present to given GLFW surface.");
+        DLOG(fatal, "GPU '" + this->name() + "' has no queue that can present to the given surface.");
     }
 
-    // If it is, then fetch the queue
+    // With the queue prepared, load the swapchain info
+    this->vk_swapchain_info = SwapchainInfo(this->vk_physical_device, vk_surface);
+    // Verify that the device supports the required modes & formats
+    if (this->vk_swapchain_info.formats().empty() || this->vk_swapchain_info.present_modes().empty()) {
+        DLOG(fatal, "GPU '" + this->name() + "' does not support the format & present mode required for the given surface.");
+    }
+
+    // If it is valid, then fetch the queue
     vkGetDeviceQueue(this->vk_device, this->vk_physical_device_queue_info.presentation(), 0, &this->vk_presentation_queue);
 
     // Done
@@ -472,6 +538,7 @@ void Compute::swap(GPU& g1, GPU& g2) {
     swap(g1.vk_compute_queue, g2.vk_compute_queue);
     swap(g1.vk_memory_queue, g2.vk_memory_queue);
     swap(g1.vk_presentation_queue, g2.vk_presentation_queue);
+    swap(g1.vk_swapchain_info, g2.vk_swapchain_info);
     swap(g1.vk_extensions, g2.vk_extensions);
 
     // Done

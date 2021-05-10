@@ -53,6 +53,15 @@ namespace Tools {
         /* Destructor for the Array class. */
         virtual ~Array();
 
+        /* Creates a new array that is a copy of this array with the elements in the given array copied and appended to them. Note that this requires the elements to be copy constructible. */
+        inline Array<T> operator+(const Array<T>& elems) const { return Array<T>(*this).operator+=(elems); }
+        /* Creates a new array that is a copy of this array with the elements in the given array appended to them (moved). Note that this does not require the elements to be move constructible due to clever haxx. */
+        inline Array<T> operator+(Array<T>&& elems) const { return Array<T>(*this).operator+=(std::move(elems)); }
+        /* Adds a whole array worth of new elements to the array, copying them. Note that this requires the elements to be copy constructible. */
+        Array<T>& operator+=(const Array<T>& elems);
+        /* Adds a whole array worth of new elements to the array, leaving the original array in an unused state (moving it). Note that this does not require the elements to be move constructible due to clever haxx. */
+        Array<T>& operator+=(Array<T>&& elems);
+
         /* Adds a new element of type T to the array, copying it. Note that this requires the element to be copy constructible. */
         void push_back(const T& elem);
         /* Adds a new element of type T to the array, leaving it in an usused state (moving it). Note that this requires the element to be move constructible. */
@@ -158,11 +167,20 @@ namespace Tools {
         Array(Array&& other): Array<T, true, true, true>(std::move(other)) {};
         /* Destructor for the Array class. */
         ~Array() {}
+
+        /* Creates a new array that is a copy of this array with the elements in the given array copied and appended to them. Note that this requires the elements to be copy constructible. */
+        Array<T> operator+(const Array<T>& elems) const = delete;
+        /* Creates a new array that is a copy of this array with the elements in the given array appended to them (moved). Note that this does not require the elements to be move constructible due to clever haxx. */
+        inline Array<T> operator+(Array<T>&& elems) const { return Array<T, true, true, true>::operator+(std::move(elems)); }
+        /* Adds a whole array worth of new elements to the array, copying them. Note that this requires the elements to be copy constructible. */
+        Array<T>& operator+=(const Array<T>& elems) = delete;
+        /* Adds a whole array worth of new elements to the array, leaving the original array in an unused state (moving it). Note that this does not require the elements to be move constructible due to clever haxx. */
+        inline Array<T>& operator+=(Array<T>&& elems) { return Array<T, true, true, true>::operator+=(std::move(elems)); }
         
         /* Adds a new element of type T to the array, copying it. Note that this requires the element to be copy constructible. */
         void push_back(const T& elem) = delete;
         /* Adds a new element of type T to the array, leaving it in an usused state (moving it). Note that this requires the element to be move constructible. */
-        void push_back(T&& elem) { return Array<T, true, true, true>::push_back(std::move(elem)); }
+        inline void push_back(T&& elem) { return Array<T, true, true, true>::push_back(std::move(elem)); }
 
         /* Copy assignment operator for the Array class. Depends on Array's copy constructor, and therefore requires the Array's type to be copy constructible. */
         inline Array& operator=(const Array& other) = delete;
@@ -195,8 +213,17 @@ namespace Tools {
         /* Destructor for the Array class. */
         ~Array() {}
 
+        /* Creates a new array that is a copy of this array with the elements in the given array copied and appended to them. Note that this requires the elements to be copy constructible. */
+        inline Array<T> operator+(const Array<T>& elems) const { return Array<T, true, true, true>::operator+(elems); }
+        /* Creates a new array that is a copy of this array with the elements in the given array appended to them (moved). Note that this does not require the elements to be move constructible due to clever haxx. */
+        inline Array<T> operator+(Array<T>&& elems) const { return Array<T, true, true, true>::operator+(std::move(elems)); }
+        /* Adds a whole array worth of new elements to the array, copying them. Note that this requires the elements to be copy constructible. */
+        inline Array<T>& operator+=(const Array<T>& elems) { return Array<T, true, true, true>::operator+=(elems); }
+        /* Adds a whole array worth of new elements to the array, leaving the original array in an unused state (moving it). Note that this does not require the elements to be move constructible due to clever haxx. */
+        inline Array<T>& operator+=(Array<T>&& elems) { return Array<T, true, true, true>::operator+=(std::move(elems)); }
+
         /* Adds a new element of type T to the array, copying it. Note that this requires the element to be copy constructible. */
-        void push_back(const T& elem) { return Array<T, true, true, true>::push_back(elem); }
+        inline void push_back(const T& elem) { return Array<T, true, true, true>::push_back(elem); }
         /* Adds a new element of type T to the array, leaving it in an usused state (moving it). Note that this requires the element to be move constructible. */
         void push_back(T&& elem) = delete;
 
@@ -225,10 +252,19 @@ namespace Tools {
         /* Destructor for the Array class. */
         ~Array() {}
 
+        /* Creates a new array that is a copy of this array with the elements in the given array copied and appended to them. Note that this requires the elements to be copy constructible. */
+        Array<T> operator+(const Array<T>& elems) const = delete;
+        /* Creates a new array that is a copy of this array with the elements in the given array appended to them (moved). Note that this does not require the elements to be move constructible due to clever haxx. */
+        inline Array<T> operator+(Array<T>&& elems) const { return Array<T, true, true, true>::operator+(std::move(elems)); }
+        /* Adds a whole array worth of new elements to the array, copying them. Note that this requires the elements to be copy constructible. */
+        Array<T>& operator+=(const Array<T>& elems) = delete;
+        /* Adds a whole array worth of new elements to the array, leaving the original array in an unused state (moving it). Note that this does not require the elements to be move constructible due to clever haxx. */
+        inline Array<T>& operator+=(Array<T>&& elems) { return Array<T, true, true, true>::operator+=(std::move(elems)); }
+
         /* Adds a new element of type T to the array, copying it. Note that this requires the element to be copy constructible. */
         void push_back(const T& elem) = delete;
         /* Adds a new element of type T to the array, leaving it in an usused state (moving it). Note that this requires the element to be move constructible. */
-        void push_back(T&& elem) { return Array<T, true, true, true>::push_back(std::move(elem)); }
+        inline void push_back(T&& elem) { return Array<T, true, true, true>::push_back(std::move(elem)); }
 
         /* Resizes the array to the given size. Any leftover elements will be initialized with their default constructor, and elements that won't fit will be deallocated. */
         void resize(size_t new_size) = delete;
@@ -264,6 +300,15 @@ namespace Tools {
         /* Destructor for the Array class. */
         ~Array() {}
 
+        /* Creates a new array that is a copy of this array with the elements in the given array copied and appended to them. Note that this requires the elements to be copy constructible. */
+        inline Array<T> operator+(const Array<T>& elems) const { return Array<T, true, true, true>::operator+(elems); }
+        /* Creates a new array that is a copy of this array with the elements in the given array appended to them (moved). Note that this does not require the elements to be move constructible due to clever haxx. */
+        inline Array<T> operator+(Array<T>&& elems) const { return Array<T, true, true, true>::operator+(std::move(elems)); }
+        /* Adds a whole array worth of new elements to the array, copying them. Note that this requires the elements to be copy constructible. */
+        inline Array<T>& operator+=(const Array<T>& elems) { return Array<T, true, true, true>::operator+=(elems); }
+        /* Adds a whole array worth of new elements to the array, leaving the original array in an unused state (moving it). Note that this does not require the elements to be move constructible due to clever haxx. */
+        inline Array<T>& operator+=(Array<T>&& elems) { return Array<T, true, true, true>::operator+=(std::move(elems)); }
+
         /* Adds a new element of type T to the array, copying it. Note that this requires the element to be copy constructible. */
         inline void push_back(const T& elem) { return Array<T, true, true, true>::push_back(elem); }
         /* Adds a new element of type T to the array, leaving it in an usused state (moving it). Note that this requires the element to be move constructible. */
@@ -297,6 +342,15 @@ namespace Tools {
         /* Destructor for the Array class. */
         ~Array() {}
 
+        /* Creates a new array that is a copy of this array with the elements in the given array copied and appended to them. Note that this requires the elements to be copy constructible. */
+        Array<T> operator+(const Array<T>& elems) const = delete;
+        /* Creates a new array that is a copy of this array with the elements in the given array appended to them (moved). Note that this does not require the elements to be move constructible due to clever haxx. */
+        inline Array<T> operator+(Array<T>&& elems) const { return Array<T, true, true, true>::operator+(std::move(elems)); }
+        /* Adds a whole array worth of new elements to the array, copying them. Note that this requires the elements to be copy constructible. */
+        Array<T>& operator+=(const Array<T>& elems) = delete;
+        /* Adds a whole array worth of new elements to the array, leaving the original array in an unused state (moving it). Note that this does not require the elements to be move constructible due to clever haxx. */
+        inline Array<T>& operator+=(Array<T>&& elems) { return Array<T, true, true, true>::operator+=(std::move(elems)); }
+
         /* Adds a new element of type T to the array, copying it. Note that this requires the element to be copy constructible. */
         void push_back(const T& elem) = delete;
         /* Adds a new element of type T to the array, leaving it in an usused state (moving it). Note that this requires the element to be move constructible. */
@@ -326,6 +380,15 @@ namespace Tools {
         Array(Array&& other): Array<T, true, true, true>(std::move(other)) {}
         /* Destructor for the Array class. */
         ~Array() {}
+
+        /* Creates a new array that is a copy of this array with the elements in the given array copied and appended to them. Note that this requires the elements to be copy constructible. */
+        Array<T> operator+(const Array<T>& elems) const = delete;
+        /* Creates a new array that is a copy of this array with the elements in the given array appended to them (moved). Note that this does not require the elements to be move constructible due to clever haxx. */
+        inline Array<T> operator+(Array<T>&& elems) const { return Array<T, true, true, true>::operator+(std::move(elems)); }
+        /* Adds a whole array worth of new elements to the array, copying them. Note that this requires the elements to be copy constructible. */
+        Array<T>& operator+=(const Array<T>& elems) = delete;
+        /* Adds a whole array worth of new elements to the array, leaving the original array in an unused state (moving it). Note that this does not require the elements to be move constructible due to clever haxx. */
+        inline Array<T>& operator+=(Array<T>&& elems) { return Array<T, true, true, true>::operator+=(std::move(elems)); }
 
         /* Adds a new element of type T to the array, copying it. Note that this requires the element to be copy constructible. */
         void push_back(const T& elem) = delete;

@@ -1,6 +1,8 @@
 # Specify the libraries in this directory
 if (RENDERER_BACKEND MATCHES "^Vulkan$")
     add_library(Renderer STATIC ${CMAKE_CURRENT_SOURCE_DIR}/Renderer.cpp ${CMAKE_CURRENT_SOURCE_DIR}/VulkanRenderer.cpp)
+elseif(RENDERER_BACKEND MATCHES "^VulkanOnline$")
+    add_library(Renderer STATIC ${CMAKE_CURRENT_SOURCE_DIR}/Renderer.cpp ${CMAKE_CURRENT_SOURCE_DIR}/VulkanOnlineRenderer.cpp)
 elseif(RENDERER_BACKEND MATCHES "^Sequential$")
     add_library(Renderer STATIC ${CMAKE_CURRENT_SOURCE_DIR}/Renderer.cpp ${CMAKE_CURRENT_SOURCE_DIR}/SequentialRenderer.cpp)
 else()
