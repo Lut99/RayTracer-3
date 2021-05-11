@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:30:34
  * Last edited:
- *   10/05/2021, 16:47:16
+ *   11/05/2021, 21:15:47
  * Auto updated?
  *   Yes
  *
@@ -32,9 +32,7 @@ using namespace CppDebugger::SeverityValues;
 
 /***** VULKANONLINERENDERER CLASS *****/
 /* Constructor for the VulkanOnlineRenderer class, which takes nothing to be compatible. Note that it does not rely on the parent constructor, since we want to start the vulkan instance & GPU differently. */
-VulkanOnlineRenderer::VulkanOnlineRenderer() :
-    Renderer()
-{
+VulkanOnlineRenderer::VulkanOnlineRenderer() {
     DENTER("VulkanOnlineRenderer::VulkanOnlineRenderer");
     DLOG(info, "Initializing Vulkan-based online renderer...");
     DINDENT;
@@ -86,77 +84,19 @@ VulkanOnlineRenderer::VulkanOnlineRenderer() :
 
 /* Copy constructor for the VulkanOnlineRenderer class. */
 VulkanOnlineRenderer::VulkanOnlineRenderer(const VulkanOnlineRenderer& other) :
-    Renderer(other)
-{
-    DENTER("VulkanOnlineRenderer::VulkanOnlineRenderer(copy)");
-    
-    // Copy the instance
-    this->instance = new Instance(*other.instance);
-
-    // Copy the GPU
-    this->gpu = new GPU(*other.gpu);
-
-    // Copy all the pools
-    this->device_memory_pool = new MemoryPool(*other.device_memory_pool);
-    this->stage_memory_pool = new MemoryPool(*other.stage_memory_pool);
-    this->descriptor_pool = new DescriptorPool(*other.descriptor_pool);
-    this->compute_command_pool = new CommandPool(*other.compute_command_pool);
-    this->memory_command_pool = new CommandPool(*other.memory_command_pool);
-
-    DLEAVE;
-}
+    VulkanRenderer(other)
+{}
 
 /* Move constructor for the VulkanOnlineRenderer class. */
 VulkanOnlineRenderer::VulkanOnlineRenderer(VulkanOnlineRenderer&& other) :
-    Renderer(other),
-    instance(other.instance),
-    gpu(other.gpu),
-    device_memory_pool(other.device_memory_pool),
-    stage_memory_pool(other.stage_memory_pool),
-    descriptor_pool(other.descriptor_pool),
-    compute_command_pool(other.compute_command_pool),
-    memory_command_pool(other.memory_command_pool)
-{
-    other.instance = nullptr;
-    other.gpu = nullptr;
-    other.device_memory_pool = nullptr;
-    other.stage_memory_pool = nullptr;
-    other.descriptor_pool = nullptr;
-    other.compute_command_pool = nullptr;
-    other.memory_command_pool = nullptr;
-}
+    VulkanRenderer(std::move(other))
+{}
 
 /* Destructor for the VulkanOnlineRenderer class. */
 VulkanOnlineRenderer::~VulkanOnlineRenderer() {
     DENTER("VulkanOnlineRenderer::~VulkanOnlineRenderer");
-    DLOG(info, "Cleaning online renderer...");
+    DLOG(info, "Cleaning online renderer stuff...");
     DINDENT;
-
-    if (this->memory_command_pool != nullptr) {
-        delete this->memory_command_pool;
-    }
-    if (this->compute_command_pool != nullptr) {
-        delete this->compute_command_pool;
-    }
-
-    if (this->descriptor_pool != nullptr) {
-        delete this->descriptor_pool;
-    }
-    
-    if (this->stage_memory_pool != nullptr) {
-        delete this->stage_memory_pool;
-    }
-    if (this->device_memory_pool != nullptr) {
-        delete this->device_memory_pool;
-    }
-
-    if (this->gpu != nullptr) {
-        delete this->gpu;
-    }
-
-    if (this->instance != nullptr) {
-        delete this->instance;
-    }
     
     DLOG(info, "Terminating GLFW library...");
     glfwTerminate();
@@ -166,15 +106,6 @@ VulkanOnlineRenderer::~VulkanOnlineRenderer() {
 }
 
 
-
-/* Pre-renders the given list of RenderEntities, accelerated using Vulkan compute shaders. */
-void VulkanOnlineRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities) {
-    DENTER("VulkanOnlineRenderer::prerender");
-
-
-
-    DRETURN;
-}
 
 /* Renders the internal list of vertices to a window using the given camera position. Renders the entire simulation, including update steps, and returns a blackened frame since the output is unreachable and simultaneously not interesting. */
 void VulkanOnlineRenderer::render(Camera& camera) const {
@@ -227,16 +158,7 @@ void RayTracer::swap(VulkanOnlineRenderer& r1, VulkanOnlineRenderer& r2) {
     using std::swap;
 
     // Swap as VulkanRenderer first
-    swap((Renderer&) r1, (Renderer&) r2);
-
-    // Next, swap all fields
-    swap(r1.instance, r2.instance);
-    swap(r1.gpu, r2.gpu);
-    swap(r1.device_memory_pool, r2.device_memory_pool);
-    swap(r1.stage_memory_pool, r2.stage_memory_pool);
-    swap(r1.descriptor_pool, r2.descriptor_pool);
-    swap(r1.compute_command_pool, r2.compute_command_pool);
-    swap(r1.memory_command_pool, r2.memory_command_pool);
+    swap((VulkanRenderer&) r1, (VulkanRenderer&) r2);
 
     // Done
 }

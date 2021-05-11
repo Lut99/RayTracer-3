@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   10/05/2021, 13:26:59
+ *   11/05/2021, 21:02:18
  * Auto updated?
  *   Yes
  *
@@ -320,12 +320,12 @@ void VulkanRenderer::render(Camera& cam) const {
     // We begin by allocating the buffers required for the main data
     size_t vertices_size = this->entity_faces.size() * sizeof(GFace);
     size_t points_size = this->entity_vertices.size() * sizeof(glm::vec4);
-    Buffer vertices = this->device_memory_pool->allocate(vertices_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    Buffer points = this->device_memory_pool->allocate(points_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    Buffer vertices = this->device_memory_pool->allocate_buffer(vertices_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    Buffer points = this->device_memory_pool->allocate_buffer(points_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
     // Next, get two staging buffers so we can (hopefully) do things concurrently
-    Buffer vertices_staging = this->stage_memory_pool->allocate(vertices_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    Buffer points_staging = this->stage_memory_pool->allocate(points_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Buffer vertices_staging = this->stage_memory_pool->allocate_buffer(vertices_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Buffer points_staging = this->stage_memory_pool->allocate_buffer(points_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
     // Next, fill the vertex & point buffers with the allocated staging buffers
     CommandBuffer staging_cb = (*this->memory_command_pool)[this->staging_cb_h];
@@ -345,11 +345,11 @@ void VulkanRenderer::render(Camera& cam) const {
     uint32_t width = cam.w(), height = cam.h();
     size_t camera_size = sizeof(GCameraData);
     size_t frame_size = width * height * sizeof(glm::vec4);
-    Buffer camera = this->device_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    Buffer frame = this->device_memory_pool->allocate(frame_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Buffer camera = this->device_memory_pool->allocate_buffer(camera_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    Buffer frame = this->device_memory_pool->allocate_buffer(frame_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
     // Next, get a staging buffer for the camera only
-    Buffer camera_staging = this->stage_memory_pool->allocate(camera_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    Buffer camera_staging = this->stage_memory_pool->allocate_buffer(camera_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
     // Map the staging buffer to host-reachable memory
     void* camera_staging_map;
@@ -426,7 +426,7 @@ void VulkanRenderer::render(Camera& cam) const {
     DLOG(info, "Retrieving frame...");
     
     // Get a staging buffer for the frame
-    Buffer frame_staging = this->stage_memory_pool->allocate(frame_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    Buffer frame_staging = this->stage_memory_pool->allocate_buffer(frame_size, VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
     // Copy the contents of the frame buffer back to the CPU
     frame.copyto(staging_cb, this->gpu->memory_queue(), frame_staging);

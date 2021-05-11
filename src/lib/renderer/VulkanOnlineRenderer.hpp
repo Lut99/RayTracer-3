@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:30:37
  * Last edited:
- *   10/05/2021, 16:43:37
+ *   11/05/2021, 21:13:12
  * Auto updated?
  *   Yes
  *
@@ -20,19 +20,13 @@
 
 #include "glm/glm.hpp"
 
-#include "compute/Instance.hpp"
-#include "compute/GPU.hpp"
-#include "compute/MemoryPool.hpp"
-#include "compute/DescriptorPool.hpp"
-#include "compute/CommandPool.hpp"
-
 #include "tools/Array.hpp"
 
-#include "Renderer.hpp"
+#include "VulkanRenderer.hpp"
 
 namespace RayTracer {
     /* The VulkanOnlineRenderer class, which renders to a window in real-time instead of a picture. */
-    class VulkanOnlineRenderer: public Renderer {
+    class VulkanOnlineRenderer: public VulkanRenderer {
     public:
          /* Constant that determines the pool size of the device-local memory. */
         static const constexpr VkDeviceSize device_memory_size = 1024 * 1024 * 1024;
@@ -40,25 +34,6 @@ namespace RayTracer {
         static const constexpr VkDeviceSize stage_memory_size = 1024 * 1024 * 1024;
         /* The maximum number of descriptor sets in the desriptor pool. */
         static const constexpr uint32_t max_descriptor_sets = 1;
-
-    protected:
-        /* The instance used to select the GPU from. */
-        Compute::Instance* instance;
-        /* The GPU on which we work. */
-        Compute::GPU* gpu;
-
-        /* The memory pool for GPU-active memory. */
-        Compute::MemoryPool* device_memory_pool;
-        /* The memory pool used for staging buffers. */
-        Compute::MemoryPool* stage_memory_pool;
-
-        /* The pool we use to allocate descriptor sets from. */
-        Compute::DescriptorPool* descriptor_pool;
-
-        /* Command pool used to schedule compute command buffers from. */
-        Compute::CommandPool* compute_command_pool;
-        /* Command pool used to schedule quick memory jobs on. */
-        Compute::CommandPool* memory_command_pool;
 
     public:
         /* Constructor for the VulkanOnlineRenderer class, which takes nothing to be compatible. */
@@ -70,8 +45,6 @@ namespace RayTracer {
         /* Destructor for the VulkanOnlineRenderer class. */
         virtual ~VulkanOnlineRenderer();
 
-        /* Pre-renders the given list of RenderEntities, accelerated using Vulkan compute shaders. */
-        virtual void prerender(const Tools::Array<ECS::RenderEntity*>& entities);
         /* Renders the internal list of vertices to a window using the given camera position. Renders the entire simulation, including update steps, and returns a blackened frame since the output is unreachable and simultaneously not interesting. */
         virtual void render(Camera& camera) const;
 

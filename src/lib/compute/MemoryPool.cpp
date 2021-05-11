@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   09/05/2021, 18:26:42
+ *   11/05/2021, 21:01:03
  * Auto updated?
  *   Yes
  *
@@ -40,6 +40,33 @@ void populate_buffer_info(VkBufferCreateInfo& buffer_info, VkDeviceSize n_bytes,
     buffer_info.usage = usage_flags;
     buffer_info.sharingMode = sharing_mode;
     buffer_info.flags = create_flags;
+
+    // Done
+    DRETURN;
+}
+
+/* Populates a given VkImageCreateInfo struct. */
+void populate_image_info(VkImageCreateInfo& image_info, const VkExtent3D& image_size, VkFormat image_format, VkImageLayout image_layout, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode, VkBufferCreateFlags create_flags) {
+    DENTER("populate_image_info");
+
+    // Only set to default
+    image_info = {};
+    image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+
+    // Set the parameters passed
+    image_info.extent = image_size;
+    image_info.format = image_format;
+    image_info.initialLayout = image_layout;
+    image_info.usage = usage_flags;
+    image_info.sharingMode = sharing_mode;
+    image_info.flags = create_flags;
+    
+    // Set the image-specific parameters
+    image_info.arrayLayers = 1;
+    image_info.imageType = VK_IMAGE_TYPE_2D;
+    image_info.mipLevels = 1;
+    image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
 
     // Done
     DRETURN;
@@ -239,6 +266,24 @@ void Buffer::copyto(const CommandBuffer& command_buffer, VkQueue vk_queue, const
 
 
 
+/***** IMAGE CLASS *****/
+/* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
+Image::Image(ImageHandle handle, VkImage image, VkExtent2D vk_extent, VkImageUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties) :
+    vk_handle(handle),
+    vk_image(image),
+    vk_extent(vk_extent),
+    vk_usage_flags(vk_usage_flags),
+    vk_memory(vk_memory),
+    vk_memory_offset(memory_offset),
+    vk_memory_size(memory_size),
+    vk_req_memory_size(req_memory_size),
+    vk_memory_properties(memory_properties)
+{}
+
+
+
+
+
 /***** MEMORYPOOL CLASS *****/
 /* Constructor for the MemoryPool class, which takes a device to allocate on, the type of memory we will allocate on and the total size of the allocated block. */
 MemoryPool::MemoryPool(const GPU& gpu, uint32_t memory_type, VkDeviceSize n_bytes, VkMemoryPropertyFlags memory_properties) :
@@ -290,7 +335,7 @@ MemoryPool::MemoryPool(const GPU& gpu, uint32_t memory_type, VkDeviceSize n_byte
     DLEAVE;
 }
 
-/* Copy constructor for the MemoryPool class, which is deleted. */
+/* Copy constructor for the MemoryPool class. */
 MemoryPool::MemoryPool(const MemoryPool& other) :
     gpu(other.gpu),
     vk_memory_type(other.vk_memory_type),
@@ -339,8 +384,16 @@ MemoryPool::~MemoryPool() {
     // Delete all buffers
     if (this->vk_used_blocks.size() > 0) {
         DLOG(info, "Deallocating buffers...");
-        for (const std::pair<BufferHandle, UsedBlock>& p : this->vk_used_blocks) {
-            vkDestroyBuffer(this->gpu, p.second.vk_buffer, nullptr);
+        for (const std::pair<MemoryHandle, UsedBlock*>& p : this->vk_used_blocks) {
+            // Either destroy the buffer or the image
+            if (p.second->type == MemoryBlockType::buffer) {
+                vkDestroyBuffer(this->gpu, ((BufferBlock*) p.second)->vk_buffer, nullptr);
+            } else if (p.second->type == MemoryBlockType::image) {
+                vkDestroyImage(this->gpu, ((ImageBlock*) p.second)->vk_image, nullptr);
+            }
+
+            // Then destroy the block itself
+            delete p.second;
         }
     }
 
@@ -357,18 +410,18 @@ MemoryPool::~MemoryPool() {
 
 
 /* Private helper function that actually performs memory allocation. Returns a reference to a UsedBlock that describes the block allocated. */
-BufferHandle MemoryPool::allocate_memory(VkDeviceSize n_bytes, const VkMemoryRequirements& mem_requirements) {
+MemoryHandle MemoryPool::allocate_memory(MemoryBlockType type, VkDeviceSize n_bytes, const VkMemoryRequirements& mem_requirements) {
     DENTER("allocate_memory");
 
     // Pick a suitable memory location for this block in the array of used blocks; either as a new block or use the location of a previously allocated one
-    BufferHandle result = 0;
+    MemoryHandle result = 0;
     bool unique = false;
     while (!unique) {
         unique = true;
-        for (const std::pair<BufferHandle, UsedBlock>& p : this->vk_used_blocks) {
+        for (const std::pair<MemoryHandle, UsedBlock*>& p : this->vk_used_blocks) {
             if (result == MemoryPool::NullHandle || result == p.first) {
                 // If result is the maximum value, then throw an error
-                if (result == std::numeric_limits<BufferHandle>::max()) {
+                if (result == std::numeric_limits<MemoryHandle>::max()) {
                     DLOG(fatal, "Buffer handle overflow; cannot allocate more buffers.");
                 }
 
@@ -380,8 +433,8 @@ BufferHandle MemoryPool::allocate_memory(VkDeviceSize n_bytes, const VkMemoryReq
         }
     }
     // Reserve space in our map
-    this->vk_used_blocks.insert(std::make_pair(result, UsedBlock()));
-    UsedBlock& block = this->vk_used_blocks.at(result);
+    this->vk_used_blocks.insert(std::make_pair(result, type == MemoryBlockType::buffer ? (UsedBlock*) new BufferBlock() : (UsedBlock*) new ImageBlock()));
+    UsedBlock* block = this->vk_used_blocks.at(result);
 
     #ifndef NDEBUG
     // Next, make sure the given memory requirements are aligning with our internal type
@@ -428,9 +481,9 @@ BufferHandle MemoryPool::allocate_memory(VkDeviceSize n_bytes, const VkMemoryReq
     }
 
     // Store the chosen parameters in the buffer for easy re-creation
-    block.start = offset;
-    block.length = n_bytes;
-    block.req_length = mem_requirements.size;
+    block->start = offset;
+    block->length = n_bytes;
+    block->req_length = mem_requirements.size;
 
     // We're done, so return the block for further initialization of the image or buffer
     DRETURN result;
@@ -438,22 +491,9 @@ BufferHandle MemoryPool::allocate_memory(VkDeviceSize n_bytes, const VkMemoryReq
 
 
 
-/* Returns a reference to the internal buffer with the given handle. Always performs out-of-bounds checking. */
-Buffer MemoryPool::at(BufferHandle h) const {
-    DENTER("Compute::MemoryPool::at");
-
-    // Check if it exists
-    if (this->vk_used_blocks.find(h) == this->vk_used_blocks.end()) {
-        DLOG(fatal, "Buffer with handle '" + std::to_string(h) + "' does not exist.");
-    }
-    DRETURN init_buffer(h, this->vk_used_blocks.at(h), this->vk_memory, this->vk_memory_properties);
-}
-
-
-
 /* Tries to get a new buffer from the pool of the given size and with the given flags. Applies extra checks if NDEBUG is not defined. */
-BufferHandle MemoryPool::allocate_h(VkDeviceSize n_bytes, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode, VkBufferCreateFlags create_flags)  {
-    DENTER("Compute::MemoryPool::allocate_h");
+BufferHandle MemoryPool::allocate_buffer_h(VkDeviceSize n_bytes, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode, VkBufferCreateFlags create_flags)  {
+    DENTER("Compute::MemoryPool::allocate_buffer_h");
 
     // First, prepare the buffer info struct
     VkBufferCreateInfo buffer_info;
@@ -471,43 +511,94 @@ BufferHandle MemoryPool::allocate_h(VkDeviceSize n_bytes, VkBufferUsageFlags usa
     vkGetBufferMemoryRequirements(this->gpu, buffer, &mem_requirements);
 
     // Use the helper function to do the allocation
-    BufferHandle result = this->allocate_memory(n_bytes, mem_requirements);
-    UsedBlock& block = this->vk_used_blocks.at(result);
+    BufferHandle result = this->allocate_memory(MemoryBlockType::buffer, n_bytes, mem_requirements);
+    BufferBlock* block = (BufferBlock*) this->vk_used_blocks.at(result);
 
     // With the block, bind the memory to the new buffer
-    if ((vk_result = vkBindBufferMemory(this->gpu, buffer, this->vk_memory, block.start)) != VK_SUCCESS) {
+    if ((vk_result = vkBindBufferMemory(this->gpu, buffer, this->vk_memory, block->start)) != VK_SUCCESS) {
         DLOG(fatal, "Could not bind buffer memory: " + vk_error_map[vk_result]);
     }
 
     // Next, populate the buffer parts of this block
-    block.vk_buffer = buffer;
-    block.vk_usage_flags = usage_flags;
-    block.vk_create_flags = create_flags;
-    block.vk_sharing_mode = sharing_mode;
+    block->vk_buffer = buffer;
+    block->vk_usage_flags = usage_flags;
+    block->vk_create_flags = create_flags;
+    block->vk_sharing_mode = sharing_mode;
 
     // Done, so return the handle
     DRETURN result;
 }
 
+/* Tries to get a new image from the pool of the given sizes and with the given flags. Applies extra checks if NDEBUG is not defined. */
+ImageHandle MemoryPool::allocate_image_h(uint32_t width, uint32_t height, VkFormat image_format, VkImageLayout image_layout, VkImageUsageFlags usage_flags, VkSharingMode sharing_mode, VkImageCreateFlags create_flags) {
+    DENTER("Compute::MemoryPool::allocate_image_h");
+
+    // First, define the width & height as a 3D extent
+    VkExtent3D image_size = {};
+    image_size.width = width;
+    image_size.height = height;
+    image_size.depth = 1;
+
+    // Next, populate the create info for the image
+    VkImageCreateInfo image_info;
+    populate_image_info(image_info, image_size, image_format, image_layout, usage_flags, sharing_mode, create_flags);
+
+    // Create the image
+    VkResult vk_result;
+    VkImage image;
+    if ((vk_result = vkCreateImage(this->gpu, &image_info, nullptr, &image)) != VK_SUCCESS) {
+        DLOG(fatal, "Could not create image: " + vk_error_map[vk_result]);
+    }
+
+    // Get the memory requirements of the image
+    VkMemoryRequirements mem_requirements;
+    vkGetImageMemoryRequirements(this->gpu, image, &mem_requirements);
+
+    // Next, allocate memory for the image
+    ImageHandle result = this->allocate_memory(MemoryBlockType::image, 3 * width * height * sizeof(uint8_t), mem_requirements);
+    ImageBlock* block = (ImageBlock*) this->vk_used_blocks.at(result);
+
+    // Bind that memory to the image
+    if ((vk_result = vkBindImageMemory(this->gpu, image, this->vk_memory, block->start)) != VK_SUCCESS) {
+        DLOG(fatal, "Could not bind image memory: " + vk_error_map[vk_result]);
+    }
+
+    // Populate the rest of the block before terminating
+    block->vk_image = image;
+    block->vk_extent = image_size;
+    block->vk_format = image_format;
+    block->vk_layout = image_layout;
+    block->vk_usage_flags = usage_flags;
+    block->vk_create_flags = create_flags;
+    block->vk_sharing_mode = sharing_mode;
+
+    // When done, return the handle
+    DRETURN result;
+}
+
 /* Deallocates the buffer with the given handle. Does not throw an error if the handle doesn't exist, unless NDEBUG is not defined. */
-void MemoryPool::deallocate(BufferHandle buffer) {
+void MemoryPool::deallocate(MemoryHandle handle) {
     DENTER("Compute::MemoryPool::deallocate");
 
     // First, try to fetch the given buffer
-    std::unordered_map<BufferHandle, UsedBlock>::iterator iter = this->vk_used_blocks.find(buffer);
+    std::unordered_map<MemoryHandle, UsedBlock*>::iterator iter = this->vk_used_blocks.find(handle);
     if (iter == this->vk_used_blocks.end()) {
-        DLOG(fatal, "Buffer with handle '" + std::to_string(buffer) + "' does not exist.");
+        DLOG(fatal, "Object with handle '" + std::to_string(handle) + "' does not exist.");
     }
 
     // Copy the block...
-    UsedBlock block = (*iter).second;
+    UsedBlock* block = (*iter).second;
     // ...then safely delete it from the list
-    vkDestroyBuffer(this->gpu, block.vk_buffer, nullptr);
+    if (block->type == MemoryBlockType::buffer) {
+        vkDestroyBuffer(this->gpu, ((BufferBlock*) block)->vk_buffer, nullptr);
+    } else if (block->type == MemoryBlockType::image) {
+        vkDestroyImage(this->gpu, ((ImageBlock*) block)->vk_image, nullptr);
+    }
     this->vk_used_blocks.erase(iter);
 
     // Get the start & offset of the buffer
-    VkDeviceSize buffer_start = block.start;
-    VkDeviceSize buffer_length = block.req_length;
+    VkDeviceSize buffer_start = block->start;
+    VkDeviceSize buffer_length = block->req_length;
 
     // Generate a new free block for the memory released by this buffer. We insert it sorted.
     bool inserted = false;
@@ -612,6 +703,9 @@ void MemoryPool::deallocate(BufferHandle buffer) {
         }
     }
 
+    // Deallocate the block itself
+    delete block;
+
     // Done
     DRETURN;
 }
@@ -624,40 +718,76 @@ void MemoryPool::defrag() {
 
     // We loop through all internal blocks
     VkResult vk_result;
+    VkMemoryRequirements mem_requirements;
     VkDeviceSize offset = 0;
-    for (const std::pair<BufferHandle, UsedBlock>& p : this->vk_used_blocks) {
+    for (const std::pair<MemoryHandle, UsedBlock*>& p : this->vk_used_blocks) {
         // Get a reference to the block
-        UsedBlock& block = this->vk_used_blocks.at(p.first);
+        UsedBlock* block = this->vk_used_blocks.at(p.first);
 
-        // Deallocate the current buffer
-        vkDestroyBuffer(this->gpu, block.vk_buffer, nullptr);
+        // Switch based on the type of block what to do next
+        if (block->type == MemoryBlockType::buffer) {
+            // It's a buffer
+            BufferBlock* bblock = (BufferBlock*) block;
 
-        // Prepare a new struct for reallocation
-        VkBufferCreateInfo buffer_info;
-        populate_buffer_info(buffer_info, block.length, block.vk_usage_flags, block.vk_sharing_mode, block.vk_create_flags);
+            // Destroy the old one
+            vkDestroyBuffer(this->gpu, bblock->vk_buffer, nullptr);
 
-        // Create a new vk_buffer
-        if ((vk_result = vkCreateBuffer(this->gpu, &buffer_info, nullptr, &block.vk_buffer)) != VK_SUCCESS) {
-            DLOG(fatal, "Could not re-create VkBuffer object: " + vk_error_map[vk_result]);
+            // Prepare a new struct for reallocation
+            VkBufferCreateInfo buffer_info;
+            populate_buffer_info(buffer_info, bblock->length, bblock->vk_usage_flags, bblock->vk_sharing_mode, bblock->vk_create_flags);
+
+            // Create a new vk_buffer
+            if ((vk_result = vkCreateBuffer(this->gpu, &buffer_info, nullptr, &bblock->vk_buffer)) != VK_SUCCESS) {
+                DLOG(fatal, "Could not re-create VkBuffer object: " + vk_error_map[vk_result]);
+            }
+
+            // Get the memory requirements for this new buffer
+            vkGetBufferMemoryRequirements(this->gpu, bblock->vk_buffer, &mem_requirements);
+
+            // Be sure that we still make it; due to aligning we might get a different size
+            if (offset + mem_requirements.size > this->vk_memory_size) {
+                DLOG(fatal, "Could not defrag buffer: memory requirements changed (need " + std::to_string(mem_requirements.size) + " bytes, but " + std::to_string(this->vk_memory_size) + " bytes free)");
+            }
+
+            // Bind new memory for, at the start of this index.
+            if ((vk_result = vkBindBufferMemory(this->gpu, bblock->vk_buffer, this->vk_memory, offset)) != VK_SUCCESS) {
+                DLOG(fatal, "Could not re-bind memory to buffer: " + vk_error_map[vk_result]);
+            }
+            
+        } else if (block->type == MemoryBlockType::image) {
+            // It's an image
+            ImageBlock* iblock = (ImageBlock*) block;
+
+            // Destroy the old one
+            vkDestroyImage(this->gpu, iblock->vk_image, nullptr);
+
+            // Prepare a new struct for reallocation
+            VkImageCreateInfo image_info;
+            populate_image_info(image_info, iblock->vk_extent, iblock->vk_format, iblock->vk_layout, iblock->vk_usage_flags, iblock->vk_sharing_mode, iblock->vk_create_flags);
+
+            // Create a new VkImage
+            if ((vk_result = vkCreateImage(this->gpu, &image_info, nullptr, &iblock->vk_image)) != VK_SUCCESS) {
+                DLOG(fatal, "Could not re-create VkImage object: " + vk_error_map[vk_result]);
+            }
+
+            // Get the memory requirements for this new image
+            vkGetImageMemoryRequirements(this->gpu, iblock->vk_image, &mem_requirements);
+
+            // Be sure that we still make it; due to aligning we might get a different size
+            if (offset + mem_requirements.size > this->vk_memory_size) {
+                DLOG(fatal, "Could not defrag image: memory requirements changed (need " + std::to_string(mem_requirements.size) + " bytes, but " + std::to_string(this->vk_memory_size) + " bytes free)");
+            }
+
+            // Bind new memory for, at the start of this index.
+            if ((vk_result = vkBindImageMemory(this->gpu, iblock->vk_image, this->vk_memory, offset)) != VK_SUCCESS) {
+                DLOG(fatal, "Could not re-bind memory to image: " + vk_error_map[vk_result]);
+            }
+
         }
 
-        // Get the memory requirements for this new buffer
-        VkMemoryRequirements mem_requirements;
-        vkGetBufferMemoryRequirements(this->gpu, block.vk_buffer, &mem_requirements);
-
-        // Be sure that we still make it; due to aligning we might get a different size
-        if (offset + mem_requirements.size > this->vk_memory_size) {
-            DLOG(fatal, "Could not defrag buffer: memory requirements changed (need " + std::to_string(mem_requirements.size) + " bytes, but " + std::to_string(this->vk_memory_size) + " bytes free)");
-        }
-
-        // Bind new memory for, at the start of this index.
-        if ((vk_result = vkBindBufferMemory(this->gpu, block.vk_buffer, this->vk_memory, offset)) != VK_SUCCESS) {
-            DLOG(fatal, "Could not re-bind memory to buffer: " + vk_error_map[vk_result]);
-        }
-
-        // Update the offset & possibly size in the block
-        block.start = offset;
-        block.length = mem_requirements.size;
+        // Finally, update the offset & possible size in the block
+        block->start = offset;
+        block->req_length = mem_requirements.size;
 
         // Increment the offset for the next buffer
         offset += mem_requirements.size;
@@ -701,9 +831,9 @@ void Compute::swap(MemoryPool& mp1, MemoryPool& mp2) {
 
 
 
-/* Static function that helps users decide the best memory queue. */
+/* Static function that helps users decide the best memory queue for buffers. */
 uint32_t MemoryPool::select_memory_type(const GPU& gpu, VkBufferUsageFlags usage_flags, VkMemoryPropertyFlags memory_properties, VkSharingMode sharing_mode, VkBufferCreateFlags create_flags) {
-    DENTER("Compute::MemoryPool::select_memory_type");
+    DENTER("Compute::MemoryPool::select_memory_type(buffer)");
 
     // Get the available memory in the internal device
     VkPhysicalDeviceMemoryProperties gpu_properties;
@@ -736,5 +866,43 @@ uint32_t MemoryPool::select_memory_type(const GPU& gpu, VkBufferUsageFlags usage
 
     // Didn't find any
     DLOG(fatal, "No suitable memory on device for given buffer configuration.");
+    DRETURN 0;
+}
+
+/* Static function that helps users decide the best memory queue for images. */
+uint32_t MemoryPool::select_memory_type(const GPU& gpu, VkFormat format, VkImageLayout layout, VkImageUsageFlags usage_flags, VkMemoryPropertyFlags memory_properties, VkSharingMode sharing_mode, VkImageCreateFlags create_flags) {
+    DENTER("Compute::MemoryPool::select_memory_type(image)");
+
+    // Get the available memory in the internal device
+    VkPhysicalDeviceMemoryProperties gpu_properties;
+    vkGetPhysicalDeviceMemoryProperties(gpu, &gpu_properties);
+
+    // Next, temporarily create a buffer to discover its type
+    VkImageCreateInfo image_info;
+    populate_image_info(image_info, VkExtent3D({ 4, 4, 1 }), format, layout, usage_flags, sharing_mode, create_flags);
+
+    // Create the buffer
+    VkResult vk_result;
+    VkImage dummy;
+    if ((vk_result = vkCreateImage(gpu, &image_info, nullptr, &dummy)) != VK_SUCCESS) {
+        DLOG(fatal, "Could not allocate temporary dummy image: " + vk_error_map[vk_result]);
+    }
+
+    // Ge the memory requirements of the buffer
+    VkMemoryRequirements mem_requirements;
+    vkGetImageMemoryRequirements(gpu, dummy, &mem_requirements);
+
+    // We can already destroy the buffer
+    vkDestroyImage(gpu, dummy, nullptr);
+
+    // Try to find suitable memory (i.e., check if the device has enough memory bits(?) and if the required properties match)
+    for (uint32_t i = 0; i < gpu_properties.memoryTypeCount; i++) {
+        if (mem_requirements.memoryTypeBits & (1 << i) && (gpu_properties.memoryTypes[i].propertyFlags & memory_properties) == memory_properties) {
+            DRETURN i;
+        }
+    }
+
+    // Didn't find any
+    DLOG(fatal, "No suitable memory on device for given image configuration.");
     DRETURN 0;
 }

@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:21:29
  * Last edited:
- *   06/05/2021, 18:17:12
+ *   11/05/2021, 21:17:53
  * Auto updated?
  *   Yes
  *
@@ -45,6 +45,9 @@ namespace RayTracer {
         static void insert_faces(Tools::Array<GFace>& faces, Tools::Array<glm::vec4>& points, const Array<Face>& new_faces);
         /* Appends a given list of indexed faces to the global list of indexed Faces. */
         static void append_faces(Tools::Array<GFace>& faces, Tools::Array<glm::vec4>& vertices, const Tools::Array<GFace>& new_faces, const Tools::Array<glm::vec4>& new_vertices);
+
+        /* Static function that pre-renders the given entity in CPU pre-render mode. */
+        static void prerender_cpu();
 
     public:
         /* Copy constructor for the Renderer baseclass. */

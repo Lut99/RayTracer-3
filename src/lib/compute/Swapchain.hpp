@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:40:10
  * Last edited:
- *   10/05/2021, 17:03:23
+ *   11/05/2021, 21:04:15
  * Auto updated?
  *   Yes
  *
@@ -49,8 +49,8 @@ namespace RayTracer::Compute {
 
         /* The images part of the swapchain. Will be variable in size. */
         Tools::Array<VkImage> vk_swapchain_images;
-        /* Images views to the images created with the swapchain. */
-        Tools::Array<VkImageView> vk_swapchain_views;
+        // /* Images views to the images created with the swapchain. */
+        // Tools::Array<VkImageView> vk_swapchain_views;
 
     public:
         /* Constructor for the Swapchain class, which takes the GPU where it will be constructed and the window to which it shall present. */

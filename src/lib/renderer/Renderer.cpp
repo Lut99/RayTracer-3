@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:17:35
  * Last edited:
- *   06/05/2021, 18:17:16
+ *   11/05/2021, 21:19:59
  * Auto updated?
  *   Yes
  *
@@ -23,6 +23,7 @@
 
 using namespace std;
 using namespace RayTracer;
+using namespace RayTracer::ECS;
 using namespace CppDebugger::SeverityValues;
 
 
@@ -143,8 +144,6 @@ void Renderer::insert_faces(Tools::Array<GFace>& faces, Tools::Array<glm::vec4>&
     // Done
     DRETURN;
 }
-
-
 
 /* Appends a given list of indexed faces to the global list of indexed Faces. */
 void Renderer::append_faces(Tools::Array<GFace>& faces, Tools::Array<glm::vec4>& vertices, const Tools::Array<GFace>& new_faces, const Tools::Array<glm::vec4>& new_vertices) {
