@@ -75,5 +75,7 @@ add_custom_target(shaders
     COMMAND glslc -fshader-stage=compute -o ${PROJECT_SOURCE_DIR}/bin/shaders/raytracer_v2.spv ${PROJECT_SOURCE_DIR}/src/lib/shaders/raytracer_v2.glsl
     COMMAND glslc -fshader-stage=compute -o ${PROJECT_SOURCE_DIR}/bin/shaders/raytracer_v3.spv ${PROJECT_SOURCE_DIR}/src/lib/shaders/raytracer_v3.glsl
     COMMAND glslc -fshader-stage=compute -o ${PROJECT_SOURCE_DIR}/bin/shaders/pre_render_sphere_v1.spv ${PROJECT_SOURCE_DIR}/src/lib/shaders/pre_render_sphere_v1.glsl
+    COMMAND glslc -fshader-stage=compute -o ${PROJECT_SOURCE_DIR}/bin/shaders/pre_render_sphere_v2_faces.spv ${PROJECT_SOURCE_DIR}/src/lib/shaders/pre_render_sphere_v2_faces.glsl
+    COMMAND glslc -fshader-stage=compute -o ${PROJECT_SOURCE_DIR}/bin/shaders/pre_render_sphere_v2_vertices.spv ${PROJECT_SOURCE_DIR}/src/lib/shaders/pre_render_sphere_v2_vertices.glsl
     COMMENT "Building shaders..."
 )

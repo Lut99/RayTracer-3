@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 11:59:00
  * Last edited:
- *   06/05/2021, 17:09:40
+ *   16/05/2021, 12:45:23
  * Auto updated?
  *   Yes
  *
@@ -26,10 +26,7 @@
 #ifdef ENABLE_VULKAN
 #include <vulkan/vulkan.h>
 
-#include "compute/GPU.hpp"
-#include "compute/MemoryPool.hpp"
-#include "compute/DescriptorPool.hpp"
-#include "compute/CommandPool.hpp"
+#include "compute/Suite.hpp"
 #endif
 
 namespace RayTracer::ECS {
@@ -54,11 +51,13 @@ namespace RayTracer::ECS {
 
     /* Pre-renders the sphere on the CPU, single-threaded. */
     void cpu_pre_render_sphere(Tools::Array<Face>& faces, Sphere* sphere);
-
     #ifdef ENABLE_VULKAN
     /* Pre-renders the sphere on the GPU using Vulkan compute shaders. */
-    void gpu_pre_render_sphere(Tools::Array<Face>& faces, const Compute::GPU& gpu, Compute::MemoryPool& device_memory_pool, Compute::MemoryPool& stage_memory_pool, Compute::DescriptorPool& descriptor_pool, Compute::CommandPool& compute_command_pool, const Compute::CommandBuffer& staging_cb, Sphere* sphere);
+    void gpu_pre_render_sphere(Compute::BufferHandle& faces_buffer, Compute::BufferHandle& vertex_buffer, Compute::Suite& gpu, Sphere* sphere);
     #endif
+
+    /* Returns the number of faces & vertices for this sphere, appended to the given integers. */
+    void get_size_sphere(uint32_t& n_faces, uint32_t& n_vertices, Sphere* sphere);
 
 }
 

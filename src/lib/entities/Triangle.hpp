@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 13:35:06
  * Last edited:
- *   06/05/2021, 17:09:24
+ *   16/05/2021, 12:45:00
  * Auto updated?
  *   Yes
  *
@@ -41,6 +41,9 @@ namespace RayTracer::ECS {
 
     /* Pre-renders the sphere on the CPU, single-threaded. */
     void cpu_pre_render_triangle(Tools::Array<Face>& faces, Triangle* triangle);
+
+    /* Returns the number of faces & vertices for this triangle, appended to the given integers. */
+    void get_size_triangle(uint32_t& n_faces, uint32_t& n_vertices, Triangle* triangle);
 
 }
 

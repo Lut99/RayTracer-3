@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 12:45:50
  * Last edited:
- *   11/05/2021, 21:03:11
+ *   16/05/2021, 12:46:34
  * Auto updated?
  *   Yes
  *
@@ -203,16 +203,7 @@ void ECS::cpu_pre_render_sphere(Tools::Array<Face>& faces, Sphere* sphere) {
 
 #ifdef ENABLE_VULKAN
 /* Pre-renders the sphere on the GPU using Vulkan compute shaders. */
-void ECS::gpu_pre_render_sphere(
-    Tools::Array<Face>& faces,
-    const Compute::GPU& gpu,
-    Compute::MemoryPool& device_memory_pool,
-    Compute::MemoryPool& stage_memory_pool,
-    Compute::DescriptorPool& descriptor_pool,
-    Compute::CommandPool& compute_command_pool,
-    const Compute::CommandBuffer& staging_cb,
-    Sphere* sphere
-) {
+void ECS::gpu_pre_render_sphere(Compute::BufferHandle& faces_buffer, Compute::BufferHandle& vertex_buffer, Compute::Suite& gpu, Sphere* sphere) {
     DENTER("ECS::gpu_pre_render_sphere");
     DLOG(info, "Pre-rendering sphere with " + std::to_string(sphere->n_meridians) + " meridians and " + std::to_string(sphere->n_parallels) + " parallels...");
     DINDENT;
@@ -220,18 +211,9 @@ void ECS::gpu_pre_render_sphere(
     /* Step 1: Prepare the staging buffer. */
     DLOG(info, "Preparing staging buffer...");
 
-    // First, compute the sizes for all buffers
+    // Allocate it only for the SphereData
     size_t gsphere_size = sizeof(SphereData);
-    size_t gfaces_count = (sphere->n_meridians + 2 * ((sphere->n_parallels - 2) * sphere->n_meridians) + sphere->n_meridians);
-    size_t gfaces_size = gfaces_count * sizeof(Face);
-
-    // Allocate the buffer itself using the largest size. We don't use the point buffer as we don't touch that data from the GPU
-    size_t staging_size = max({ gsphere_size, gfaces_size });
-    Buffer staging = stage_memory_pool.allocate_buffer(staging_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-
-    DINDENT;
-    DLOG(info, "Staging buffer is " + std::to_string(staging_size) + " bytes.");
-    DDEDENT;
+    Buffer staging = gpu.stage_memory_pool.allocate_buffer(gsphere_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
 
 
@@ -239,31 +221,44 @@ void ECS::gpu_pre_render_sphere(
     DLOG(info, "Copying sphere data to GPU...");
 
     // Then, allocate a uniform buffer that shall contain the sphere data
-    Buffer gsphere = device_memory_pool.allocate_buffer(gsphere_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    Buffer gsphere = gpu.device_memory_pool.allocate_buffer(gsphere_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
     // Next, map the staging buffer and populate it with the correct data
     SphereData* mapped_data;
-    staging.map(gpu, (void**) &mapped_data);
+    staging.map(gpu.gpu, (void**) &mapped_data);
     mapped_data->center = sphere->center;
     mapped_data->radius = sphere->radius;
     mapped_data->n_meridians = sphere->n_meridians;
     mapped_data->n_parallels = sphere->n_parallels;
     mapped_data->color = sphere->color;
-    staging.flush(gpu);
-    staging.unmap(gpu);
+    staging.flush(gpu.gpu);
+    staging.unmap(gpu.gpu);
 
     // Copy the data over using the given transfer command buffer
-    staging.copyto(staging_cb, gpu.memory_queue(), gsphere, (VkDeviceSize) gsphere_size);
+    staging.copyto(gpu.staging_cb, gpu.gpu.memory_queue(), gsphere, (VkDeviceSize) gsphere_size);
+
+    // We don't need the staging buffer anymore as we won't retrieve anything, so deallocate it
+    gpu.stage_memory_pool.deallocate(staging);
 
     
 
     /* Step 3: Prepare the output buffers. */
-    DLOG(info, "Preparing output buffer...");
-
-    // Next is the vertex buffer
-    Buffer gfaces = device_memory_pool.allocate_buffer(gfaces_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+    DLOG(info, "Preparing output buffers...");
     DINDENT;
-    DLOG(info, "Face buffer is " + std::to_string(gfaces_size / sizeof(Face)) + " elements (" + std::to_string(gfaces_size) + " bytes)");
+
+    // Next, we allocate the faces & vertex buffers
+    size_t gfaces_count = sphere->n_meridians + 2 * ((sphere->n_parallels - 2) * sphere->n_meridians) + sphere->n_meridians;
+    size_t gfaces_size = gfaces_count * sizeof(GFace);
+    Buffer gfaces = gpu.device_memory_pool.allocate_buffer(gfaces_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    faces_buffer = gfaces.handle();
+    DLOG(info, "Face buffer is " + std::to_string(gfaces_size / sizeof(GFace)) + " elements (" + std::to_string(gfaces_size) + " bytes)");
+
+    size_t gvertices_count = 2 + (sphere->n_parallels - 2) * sphere->n_meridians;
+    size_t gvertices_size = gvertices_count * sizeof(glm::vec4);
+    Buffer gvertices = gpu.device_memory_pool.allocate_buffer(gvertices_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    vertex_buffer = gvertices.handle();
+    DLOG(info, "Vertex buffer is " + std::to_string(gvertices_size / sizeof(glm::vec4)) + "elements (" + std::to_string(gvertices_size) + " bytes)");
+    
     DDEDENT;
 
 
@@ -272,244 +267,94 @@ void ECS::gpu_pre_render_sphere(
     DLOG(info, "Preparing descriptor sets...");
     
     // First, define a layout
-    DescriptorSetLayout layout(gpu);
+    DescriptorSetLayout layout(gpu.gpu);
     layout.add_binding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
+    layout.add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
     layout.add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
     layout.finalize();
 
     // Next, bind a descriptor set
-    DescriptorSet descriptor_set = descriptor_pool.allocate(layout);
-    descriptor_set.set(gpu, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, Tools::Array<Buffer>({ gsphere }));
-    descriptor_set.set(gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, Tools::Array<Buffer>({ gfaces }));
+    DescriptorSet descriptor_set = gpu.descriptor_pool.allocate(layout);
+    descriptor_set.set(gpu.gpu, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, Tools::Array<Buffer>({ gsphere }));
+    descriptor_set.set(gpu.gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, Tools::Array<Buffer>({ gfaces }));
+    descriptor_set.set(gpu.gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, Tools::Array<Buffer>({ gvertices }));
 
 
 
     /* Step 5: Run the first shader stage */
-    DLOG(info, "Running shader...");
+    DLOG(info, "Running shaders...");
     DINDENT;
     {
-        // Prepare the pipeline for this stage
-        Pipeline pipeline(
-            gpu,
-            Shader(gpu, Tools::get_executable_path() + "/shaders/pre_render_sphere_v1.spv"),
+        // Prepare the pipelines for this stage
+        Pipeline pipeline_vertices(
+            gpu.gpu,
+            Shader(gpu.gpu, Tools::get_executable_path() + "/shaders/pre_render_sphere_v2_vertices.spv"),
+            Tools::Array<DescriptorSetLayout>({ layout })
+        );
+        Pipeline pipeline_faces(
+            gpu.gpu,
+            Shader(gpu.gpu, Tools::get_executable_path() + "/shaders/pre_render_sphere_v2_faces.spv"),
             Tools::Array<DescriptorSetLayout>({ layout })
         );
 
         // Next, record the command buffer
-        CommandBuffer cb_compute = compute_command_pool.allocate();
+        CommandBuffer cb_compute = gpu.compute_command_pool.allocate();
         cb_compute.begin();
-        pipeline.bind(cb_compute);
-        descriptor_set.bind(cb_compute, pipeline.layout());
+
+        // Bind the vertex shader
+        pipeline_vertices.bind(cb_compute);
+        descriptor_set.bind(cb_compute, pipeline_vertices.layout());
+        vkCmdDispatch(cb_compute, (sphere->n_meridians / 32) + 1, (sphere->n_parallels / 32) + 1, 1);
+
+        // Bind the faces shader
+        pipeline_faces.bind(cb_compute);
+        descriptor_set.bind(cb_compute, pipeline_faces.layout());
         vkCmdDispatch(cb_compute, (sphere->n_meridians / 32) + 1, ((sphere->n_parallels - 1) / 32) + 1, 1);
+
         cb_compute.end();
 
         // Launch it
         VkResult vk_result;
         VkSubmitInfo submit_info = cb_compute.get_submit_info();
-        if ((vk_result = vkQueueSubmit(gpu.compute_queue(), 1, &submit_info, VK_NULL_HANDLE)) != VK_SUCCESS) {
-            DLOG(fatal, "Could not submit command buffer for first shader stage: " + vk_error_map[vk_result]);
+        if ((vk_result = vkQueueSubmit(gpu.gpu.compute_queue(), 1, &submit_info, VK_NULL_HANDLE)) != VK_SUCCESS) {
+            DLOG(fatal, "Could not submit command buffer: " + vk_error_map[vk_result]);
         }
 
         // Finally, wait until the rendering is done as a synchronization barrier so we may re-use the command buffer
-        if ((vk_result = vkQueueWaitIdle(gpu.compute_queue())) != VK_SUCCESS) {
-            DLOG(fatal, "Could not wait for queue to become idle after submitting first shader stage:" + vk_error_map[vk_result]);
+        if ((vk_result = vkQueueWaitIdle(gpu.gpu.compute_queue())) != VK_SUCCESS) {
+            DLOG(fatal, "Could not wait for queue to become idle:" + vk_error_map[vk_result]);
         }
 
         // Deallocate the command buffer neatly
-        compute_command_pool.deallocate(cb_compute);
+        gpu.compute_command_pool.deallocate(cb_compute);
     }
     DDEDENT;
 
 
 
-    /* Step 7: Retrieving vertices. */
-    DLOG(info, "Retrieving faces...");
-
-    // Use the get method together with the staging buffer and the resulting lists' wdata
-    faces.reserve(gfaces_count);
-    gfaces.get(gpu, staging, staging_cb, gpu.memory_queue(), faces.wdata(gfaces_count), gfaces_size);
-    // for (size_t i = 0; i < sphere->n_meridians; i++) {
-    //     // Compute the point for funz
-    //     // Generate the north pole
-    //     glm::vec3 north = sphere->center + glm::vec3(0.0, sphere->radius, 0.0);
-
-    //     // Generate a single dot on the previous location
-    //     glm::vec3 p1(
-    //         sinf(M_PI * ((float) 1 / (float) sphere->n_parallels)) * cosf(2 * M_PI * ((float) (i > 0 ? i - 1 : sphere->n_meridians - 1) / (float) sphere->n_meridians)) * sphere->radius,
-    //         cosf(M_PI * ((float) 1 / (float) sphere->n_parallels)) * sphere->radius,
-    //         sinf(M_PI * ((float) 1 / (float) sphere->n_parallels)) * sinf(2 * M_PI * ((float) (i > 0 ? i - 1 : sphere->n_meridians - 1) / (float) sphere->n_meridians)) * sphere->radius
-    //     );
-    //     // Translate the dot to the correct origin point
-    //     p1 += sphere->center;
-
-    //     // Generate a single dot on this location
-    //     glm::vec3 p2(
-    //         sinf(M_PI * ((float) 1 / (float) sphere->n_parallels)) * cosf(2 * M_PI * ((float) i / (float) sphere->n_meridians)) * sphere->radius,
-    //         cosf(M_PI * ((float) 1 / (float) sphere->n_parallels)) * sphere->radius,
-    //         sinf(M_PI * ((float) 1 / (float) sphere->n_parallels)) * sinf(2 * M_PI * ((float) i / (float) sphere->n_meridians)) * sphere->radius
-    //     );
-    //     // Translate the dot to the correct origin point
-    //     p2 += sphere->center;
-
-    //     glm::vec3 distance1 = glm::abs(vertices[i].p1 - north);
-    //     glm::vec3 distance2 = glm::abs(vertices[i].p2 - p1);
-    //     glm::vec3 distance3 = glm::abs(vertices[i].p3 - p2);
-    //     if (distance1.x > 1e-6 || distance1.y > 1e-6 || distance1.z > 1e-6 ||
-    //         distance2.x > 1e-6 || distance2.y > 1e-6 || distance2.z > 1e-6 ||
-    //         distance3.x > 1e-6 || distance3.y > 1e-6 || distance3.z > 1e-6)
-    //     {
-    //         printf("Vertex %lu (north) differs:\n   Based on: (%f,%f,%f), (%f,%f,%f) and (%f,%f,%f)\n   Points: (%f,%f,%f), (%f,%f,%f) and (%f,%f,%f)\n   Normal: (%f,%f,%f)\n   Color: (%f,%f,%f)\n\n", i,
-    //             north.x, north.y, north.z,
-    //             p1.x, p1.y, p1.z,
-    //             p2.x, p2.y, p2.z,
-    //             vertices[i].p1.x, vertices[i].p1.y, vertices[i].p1.z,
-    //             vertices[i].p2.x, vertices[i].p2.y, vertices[i].p2.z,
-    //             vertices[i].p3.x, vertices[i].p3.y, vertices[i].p3.z,
-    //             vertices[i].normal.x, vertices[i].normal.y, vertices[i].normal.z,
-    //             vertices[i].color.x, vertices[i].color.y, vertices[i].color.z);
-    //     }
-    // }
-    // for (size_t p = 2; p < sphere->n_parallels - 1; p++) {
-    //     for (size_t i = 0; i < sphere->n_meridians; i++) {
-    //         // Compute the point for funz
-
-    //         // Generate a single dot on the previous location on the previous circle
-    //         glm::vec3 p1(
-    //             sinf(M_PI * ((float) (p - 1) / (float) sphere->n_parallels)) * cosf(2 * M_PI * ((float) (i > 0 ? i - 1 : sphere->n_meridians - 1) / (float) sphere->n_meridians)) * sphere->radius,
-    //             cosf(M_PI * ((float) (p - 1) / (float) sphere->n_parallels)) * sphere->radius,
-    //             sinf(M_PI * ((float) (p - 1) / (float) sphere->n_parallels)) * sinf(2 * M_PI * ((float) (i > 0 ? i - 1 : sphere->n_meridians - 1) / (float) sphere->n_meridians)) * sphere->radius
-    //         );
-    //         // Translate the dot to the correct origin point
-    //         p1 += sphere->center;
-
-    //         // Generate a single dot on this location on the previous circle
-    //         glm::vec3 p2(
-    //             sinf(M_PI * ((float) (p - 1) / (float) sphere->n_parallels)) * cosf(2 * M_PI * ((float) i / (float) sphere->n_meridians)) * sphere->radius,
-    //             cosf(M_PI * ((float) (p - 1) / (float) sphere->n_parallels)) * sphere->radius,
-    //             sinf(M_PI * ((float) (p - 1) / (float) sphere->n_parallels)) * sinf(2 * M_PI * ((float) i / (float) sphere->n_meridians)) * sphere->radius
-    //         );
-    //         // Translate the dot to the correct origin point
-    //         p2 += sphere->center;
-
-    //         // Generate a single dot on the previous location
-    //         glm::vec3 p3(
-    //             sinf(M_PI * ((float) p / (float) sphere->n_parallels)) * cosf(2 * M_PI * ((float) (i > 0 ? i - 1 : sphere->n_meridians - 1) / (float) sphere->n_meridians)) * sphere->radius,
-    //             cosf(M_PI * ((float) p / (float) sphere->n_parallels)) * sphere->radius,
-    //             sinf(M_PI * ((float) p / (float) sphere->n_parallels)) * sinf(2 * M_PI * ((float) (i > 0 ? i - 1 : sphere->n_meridians - 1) / (float) sphere->n_meridians)) * sphere->radius
-    //         );
-    //         // Translate the dot to the correct origin point
-    //         p3 += sphere->center;
-
-    //         // Generate a single dot on this location
-    //         glm::vec3 p4(
-    //             sinf(M_PI * ((float) p / (float) sphere->n_parallels)) * cosf(2 * M_PI * ((float) i / (float) sphere->n_meridians)) * sphere->radius,
-    //             cosf(M_PI * ((float) p / (float) sphere->n_parallels)) * sphere->radius,
-    //             sinf(M_PI * ((float) p / (float) sphere->n_parallels)) * sinf(2 * M_PI * ((float) i / (float) sphere->n_meridians)) * sphere->radius
-    //         );
-    //         // Translate the dot to the correct origin point
-    //         p4 += sphere->center;
-
-    //         size_t index = sphere->n_meridians + 2 * (p - 2) * sphere->n_meridians + 2 * i;
-    //         glm::vec3 distance1 = glm::abs(vertices[index].p1 - p1);
-    //         glm::vec3 distance2 = glm::abs(vertices[index].p2 - p3);
-    //         glm::vec3 distance3 = glm::abs(vertices[index].p3 - p4);
-    //         if (
-    //             (distance1.x > 1e-6 || distance1.y > 1e-6 || distance1.z > 1e-6 ||
-    //              distance2.x > 1e-6 || distance2.y > 1e-6 || distance2.z > 1e-6 ||
-    //              distance3.x > 1e-6 || distance3.y > 1e-6 || distance3.z > 1e-6))
-    //         {
-    //             printf("Vertex %lu,%lu (1) differs:\n   Based on: (%f,%f,%f), (%f,%f,%f) and (%f,%f,%f)\n   Points: (%f,%f,%f), (%f,%f,%f) and (%f,%f,%f)\n   Normal: (%f,%f,%f)\n   Color: (%f,%f,%f)\n\n", p, i,
-    //                 p1.x, p1.y, p1.z,
-    //                 p3.x, p3.y, p3.z,
-    //                 p4.x, p4.y, p4.z,
-    //                 vertices[index].p1.x, vertices[index].p1.y, vertices[index].p1.z,
-    //                 vertices[index].p2.x, vertices[index].p2.y, vertices[index].p2.z,
-    //                 vertices[index].p3.x, vertices[index].p3.y, vertices[index].p3.z,
-    //                 vertices[index].normal.x, vertices[index].normal.y, vertices[index].normal.z,
-    //                 vertices[index].color.x, vertices[index].color.y, vertices[index].color.z);
-    //         }
-
-    //         index = sphere->n_meridians + 2 * (p - 2) * sphere->n_meridians + 2 * i + 1;
-    //         distance1 = glm::abs(vertices[index].p1 - p1);
-    //         distance2 = glm::abs(vertices[index].p2 - p2);
-    //         distance3 = glm::abs(vertices[index].p3 - p4);
-    //         if (
-    //             (distance1.x > 1e-6 || distance1.y > 1e-6 || distance1.z > 1e-6 ||
-    //              distance2.x > 1e-6 || distance2.y > 1e-6 || distance2.z > 1e-6 ||
-    //              distance3.x > 1e-6 || distance3.y > 1e-6 || distance3.z > 1e-6))
-    //         {
-    //             printf("Vertex %lu,%lu (2) differs:\n   Based on: (%f,%f,%f), (%f,%f,%f) and (%f,%f,%f)\n   Points: (%f,%f,%f), (%f,%f,%f) and (%f,%f,%f)\n   Normal: (%f,%f,%f)\n   Color: (%f,%f,%f)\n\n", p, i,
-    //                 p1.x, p1.y, p1.z,
-    //                 p2.x, p2.y, p2.z,
-    //                 p4.x, p4.y, p4.z,
-    //                 vertices[index].p1.x, vertices[index].p1.y, vertices[index].p1.z,
-    //                 vertices[index].p2.x, vertices[index].p2.y, vertices[index].p2.z,
-    //                 vertices[index].p3.x, vertices[index].p3.y, vertices[index].p3.z,
-    //                 vertices[index].normal.x, vertices[index].normal.y, vertices[index].normal.z,
-    //                 vertices[index].color.x, vertices[index].color.y, vertices[index].color.z);
-    //         }
-    //     }
-    // }
-    // for (size_t i = 0; i < sphere->n_meridians; i++) {
-    //     // Compute the point for funz
-    //     // Generate the north pole
-    //     glm::vec3 south = sphere->center - glm::vec3(0.0, sphere->radius, 0.0);
-
-    //     // Generate a single dot on the previous location
-    //     glm::vec3 p1(
-    //         sinf(M_PI * ((float) (sphere->n_parallels - 2) / (float) sphere->n_parallels)) * cosf(2 * M_PI * ((float) (i > 0 ? i - 1 : sphere->n_meridians - 1) / (float) sphere->n_meridians)) * sphere->radius,
-    //         cosf(M_PI * ((float) (sphere->n_parallels - 2) / (float) sphere->n_parallels)) * sphere->radius,
-    //         sinf(M_PI * ((float) (sphere->n_parallels - 2) / (float) sphere->n_parallels)) * sinf(2 * M_PI * ((float) (i > 0 ? i - 1 : sphere->n_meridians - 1) / (float) sphere->n_meridians)) * sphere->radius
-    //     );
-    //     // Translate the dot to the correct origin point
-    //     p1 += sphere->center;
-
-    //     // Generate a single dot on this location
-    //     glm::vec3 p2(
-    //         sinf(M_PI * ((float) (sphere->n_parallels - 2) / (float) sphere->n_parallels)) * cosf(2 * M_PI * ((float) i / (float) sphere->n_meridians)) * sphere->radius,
-    //         cosf(M_PI * ((float) (sphere->n_parallels - 2) / (float) sphere->n_parallels)) * sphere->radius,
-    //         sinf(M_PI * ((float) (sphere->n_parallels - 2) / (float) sphere->n_parallels)) * sinf(2 * M_PI * ((float) i / (float) sphere->n_meridians)) * sphere->radius
-    //     );
-    //     // Translate the dot to the correct origin point
-    //     p2 += sphere->center;
-
-    //     size_t index = sphere->n_meridians + 2 * (sphere->n_parallels - 3) * sphere->n_meridians + i;
-    //     glm::vec3 distance1 = glm::abs(vertices[index].p1 - south);
-    //     glm::vec3 distance2 = glm::abs(vertices[index].p2 - p1);
-    //     glm::vec3 distance3 = glm::abs(vertices[index].p3 - p2);
-    //     if (distance1.x > 1e-6 || distance1.y > 1e-6 || distance1.z > 1e-6 ||
-    //         distance2.x > 1e-6 || distance2.y > 1e-6 || distance2.z > 1e-6 ||
-    //         distance3.x > 1e-6 || distance3.y > 1e-6 || distance3.z > 1e-6)
-    //     {
-    //         printf("Vertex %lu (south) differs:\n   Based on: (%f,%f,%f), (%f,%f,%f) and (%f,%f,%f)\n   Points: (%f,%f,%f), (%f,%f,%f) and (%f,%f,%f)\n   Normal: (%f,%f,%f)\n   Color: (%f,%f,%f)\n\n", i,
-    //             south.x, south.y, south.z,
-    //             p1.x, p1.y, p1.z,
-    //             p2.x, p2.y, p2.z,
-    //             vertices[index].p1.x, vertices[index].p1.y, vertices[index].p1.z,
-    //             vertices[index].p2.x, vertices[index].p2.y, vertices[index].p2.z,
-    //             vertices[index].p3.x, vertices[index].p3.y, vertices[index].p3.z,
-    //             vertices[index].normal.x, vertices[index].normal.y, vertices[index].normal.z,
-    //             vertices[index].color.x, vertices[index].color.y, vertices[index].color.z);
-    //     }
-    // }
-
-
-
-    /* Step 8: Cleanup then done. */
+    /* Step 7: Cleanup then done. */
     DLOG(info, "Cleaning up...");
 
     // Destroy the descriptor set
-    descriptor_pool.deallocate(descriptor_set);
+    gpu.descriptor_pool.deallocate(descriptor_set);
 
-    // Destroy the three main buffers
-    device_memory_pool.deallocate(gfaces);
-    device_memory_pool.deallocate(gsphere);
-
-    // Finally, destroy the staging buffer
-    stage_memory_pool.deallocate(staging);
+    // Destroy the sphere data as we won't need that anymore
+    gpu.device_memory_pool.deallocate(gsphere);
 
     // Done!
     DDEDENT;
     DRETURN;
 }
 #endif
+
+
+
+/* Returns the number of faces & vertices for this sphere, appended to the given integers. */
+void ECS::get_size_sphere(uint32_t& n_faces, uint32_t& n_vertices, Sphere* sphere) {
+    DENTER("ECS::get_size_sphere");
+
+    n_faces += sphere->n_meridians + 2 * ((sphere->n_parallels - 2) * sphere->n_meridians) + sphere->n_meridians;
+    n_vertices += 2 + (sphere->n_parallels - 2) * sphere->n_meridians;
+
+    DRETURN;
+}

@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:35
  * Last edited:
- *   11/05/2021, 21:01:29
+ *   16/05/2021, 12:37:48
  * Auto updated?
  *   Yes
  *
@@ -45,6 +45,10 @@ namespace RayTracer::Compute {
 
         /* Describes the usage flags set for this buffer. */
         VkBufferUsageFlags vk_usage_flags;
+        /* Describes the sharing mode for this buffer. */
+        VkSharingMode vk_sharing_mode;
+        /* Describes the create flags for this buffer. */
+        VkBufferCreateFlags vk_create_flags;
 
         /* Reference to the large memory block where this buffer is allocated. */
         VkDeviceMemory vk_memory;
@@ -58,7 +62,7 @@ namespace RayTracer::Compute {
         VkMemoryPropertyFlags vk_memory_properties;
 
         /* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
-        Buffer(BufferHandle handle, VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties);
+        Buffer(BufferHandle handle, VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkSharingMode vk_sharing_mode, VkBufferCreateFlags vk_create_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties);
         
         /* Mark the MemoryPool as friend. */
         friend class MemoryPool;
@@ -111,9 +115,17 @@ namespace RayTracer::Compute {
         VkImage vk_image;
         /* The size of the image as a Vulkan extent. */
         VkExtent2D vk_extent;
+        /* The format of the image. */
+        VkFormat vk_format;
+        /* The layout of the image. */
+        VkImageLayout vk_layout;
 
         /* Describes the usage flags set for this image. */
         VkImageUsageFlags vk_usage_flags;
+        /* Describes the sharing mode for this image. */
+        VkSharingMode vk_sharing_mode;
+        /* Describes the create flags for this image. */
+        VkImageCreateFlags vk_create_flags;
 
         /* Reference to the large memory block where this image is allocated. */
         VkDeviceMemory vk_memory;
@@ -127,7 +139,7 @@ namespace RayTracer::Compute {
         VkMemoryPropertyFlags vk_memory_properties;
 
         /* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
-        Image(ImageHandle handle, VkImage image, VkExtent2D vk_extent, VkImageUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties);
+        Image(ImageHandle handle, VkImage image, VkExtent2D vk_extent, VkFormat vk_format, VkImageLayout vk_layout, VkImageUsageFlags vk_usage_flags, VkSharingMode vk_sharing_mode, VkImageCreateFlags vk_create_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties);
         
         /* Mark the MemoryPool as friend. */
         friend class MemoryPool;
@@ -258,9 +270,9 @@ namespace RayTracer::Compute {
 
 
         /* Private helper function that takes a BufferBlock, and uses it to initialize the given buffer. */
-        inline static Buffer init_buffer(BufferHandle handle, BufferBlock* block, VkDeviceMemory vk_memory, VkMemoryPropertyFlags memory_properties) { return Buffer(handle, block->vk_buffer, block->vk_usage_flags, vk_memory, block->start, block->length, block->req_length, memory_properties); }
+        inline static Buffer init_buffer(BufferHandle handle, BufferBlock* block, VkDeviceMemory vk_memory, VkMemoryPropertyFlags memory_properties) { return Buffer(handle, block->vk_buffer, block->vk_usage_flags, block->vk_sharing_mode, block->vk_create_flags, vk_memory, block->start, block->length, block->req_length, memory_properties); }
         /* Private helper function that takes a UsedBlock, and uses it to initialize the given buffer. */
-        inline static Image init_image(ImageHandle handle, ImageBlock* block, VkDeviceMemory vk_memory, VkMemoryPropertyFlags memory_properties) { return Image(handle, block->vk_image, VkExtent2D({ block->vk_extent.width, block->vk_extent.height }), block->vk_usage_flags, vk_memory, block->start, block->length, block->req_length, memory_properties); }
+        inline static Image init_image(ImageHandle handle, ImageBlock* block, VkDeviceMemory vk_memory, VkMemoryPropertyFlags memory_properties) { return Image(handle, block->vk_image, VkExtent2D({ block->vk_extent.width, block->vk_extent.height }), block->vk_format, block->vk_layout, block->vk_usage_flags, block->vk_sharing_mode, block->vk_create_flags, vk_memory, block->start, block->length, block->req_length, memory_properties); }
 
         /* Private helper function that actually performs memory allocation. Returns a reference to a UsedBlock that describes the block allocated. */
         MemoryHandle allocate_memory(MemoryBlockType type, VkDeviceSize n_bytes, const VkMemoryRequirements& mem_requirements);
@@ -286,10 +298,20 @@ namespace RayTracer::Compute {
 
         /* Tries to get a new buffer from the pool of the given size and with the given flags. Applies extra checks if NDEBUG is not defined. */
         inline Buffer allocate_buffer(VkDeviceSize n_bytes, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode = VK_SHARING_MODE_EXCLUSIVE, VkBufferCreateFlags create_flags = 0) { return this->deref_buffer(this->allocate_buffer_h(n_bytes, usage_flags, sharing_mode, create_flags)); }
-        /* Tries to get a new buffer from the pool of the given size and with the given flags. Applies extra checks if NDEBUG is not defined. */
+        /* Allocates a new buffer that has the same specifications as the given Buffer object. Note that the given Buffer needn't be allocated with the same pool as this one. */
+        inline Buffer allocate_buffer(const Buffer& buffer) { return this->allocate_buffer(buffer.vk_memory_size, buffer.vk_usage_flags, buffer.vk_sharing_mode, buffer.vk_create_flags); }
+        /* Tries to get a new buffer from the pool of the given size and with the given flags, returning only its handle. Applies extra checks if NDEBUG is not defined. */
         BufferHandle allocate_buffer_h(VkDeviceSize n_bytes, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode = VK_SHARING_MODE_EXCLUSIVE, VkBufferCreateFlags create_flags = 0);
+        /* Allocates a new buffer that has the same specifications as the given Buffer object, but we return only its handle. Note that the given Buffer needn't be allocated with the same pool as this one. */
+        inline BufferHandle allocate_buffer_h(const Buffer& buffer) { return this->allocate_buffer_h(buffer.vk_memory_size, buffer.vk_usage_flags, buffer.vk_sharing_mode, buffer.vk_create_flags); }
         /* Tries to get a new image from the pool of the given sizes and with the given flags. Applies extra checks if NDEBUG is not defined. */
+        inline Image allocate_image(uint32_t width, uint32_t height, VkFormat image_format, VkImageLayout image_layout, VkImageUsageFlags usage_flags, VkSharingMode sharing_mode = VK_SHARING_MODE_EXCLUSIVE, VkImageCreateFlags create_flags = 0) { return this->deref_image(this->allocate_image_h(width, height, image_format, image_layout, usage_flags, sharing_mode, create_flags)); }
+        /* Allocates a new image that has the same specifications as the given Image object. Note that the given Image needn't be allocated with the same pool as this one. */
+        inline Image allocate_image(const Image& image) { return this->allocate_image(image.vk_extent.width, image.vk_extent.height, image.vk_format, image.vk_layout, image.vk_usage_flags, image.vk_sharing_mode, image.vk_format); }
+        /* Tries to get a new image from the pool of the given sizes and with the given flags, returning only its handle. Applies extra checks if NDEBUG is not defined. */
         ImageHandle allocate_image_h(uint32_t width, uint32_t height, VkFormat image_format, VkImageLayout image_layout, VkImageUsageFlags usage_flags, VkSharingMode sharing_mode = VK_SHARING_MODE_EXCLUSIVE, VkImageCreateFlags create_flags = 0);
+        /* Allocates a new image that has the same specifications as the given Image object, returning only its handle. Note that the given Image needn't be allocated with the same pool as this one. */
+        inline ImageHandle allocate_image_h(const Image& image) { return this->allocate_image_h(image.vk_extent.width, image.vk_extent.height, image.vk_format, image.vk_layout, image.vk_usage_flags, image.vk_sharing_mode, image.vk_format); }
         /* Deallocates the buffer with the given handle. Does not throw an error if the handle doesn't exist, unless NDEBUG is not defined. */
         void deallocate(BufferHandle buffer);
 

@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   11/05/2021, 21:01:03
+ *   16/05/2021, 12:36:55
  * Auto updated?
  *   Yes
  *
@@ -112,10 +112,12 @@ void populate_memory_range(VkMappedMemoryRange& memory_range, VkDeviceMemory vk_
 
 /***** BUFFER CLASS *****/
 /* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
-Buffer::Buffer(BufferHandle handle, VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties) :
+Buffer::Buffer(BufferHandle handle, VkBuffer buffer, VkBufferUsageFlags vk_usage_flags, VkSharingMode vk_sharing_mode, VkBufferCreateFlags vk_create_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties) :
     vk_handle(handle),
     vk_buffer(buffer),
     vk_usage_flags(vk_usage_flags),
+    vk_sharing_mode(vk_sharing_mode),
+    vk_create_flags(vk_create_flags),
     vk_memory(vk_memory),
     vk_memory_offset(memory_offset),
     vk_memory_size(memory_size),
@@ -268,11 +270,15 @@ void Buffer::copyto(const CommandBuffer& command_buffer, VkQueue vk_queue, const
 
 /***** IMAGE CLASS *****/
 /* Private constructor for the Buffer class, which takes the buffer, the buffer's size and the properties of the pool's memory. */
-Image::Image(ImageHandle handle, VkImage image, VkExtent2D vk_extent, VkImageUsageFlags vk_usage_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties) :
+Image::Image(ImageHandle handle, VkImage image, VkExtent2D vk_extent, VkFormat vk_format, VkImageLayout vk_layout, VkImageUsageFlags vk_usage_flags, VkSharingMode vk_sharing_mode, VkImageCreateFlags vk_create_flags, VkDeviceMemory vk_memory, VkDeviceSize memory_offset, VkDeviceSize memory_size, VkDeviceSize req_memory_size, VkMemoryPropertyFlags memory_properties) :
     vk_handle(handle),
     vk_image(image),
     vk_extent(vk_extent),
+    vk_format(vk_format),
+    vk_layout(vk_layout),
     vk_usage_flags(vk_usage_flags),
+    vk_sharing_mode(vk_sharing_mode),
+    vk_create_flags(vk_create_flags),
     vk_memory(vk_memory),
     vk_memory_offset(memory_offset),
     vk_memory_size(memory_size),
@@ -491,7 +497,7 @@ MemoryHandle MemoryPool::allocate_memory(MemoryBlockType type, VkDeviceSize n_by
 
 
 
-/* Tries to get a new buffer from the pool of the given size and with the given flags. Applies extra checks if NDEBUG is not defined. */
+/* Tries to get a new buffer from the pool of the given size and with the given flags, returning only its handle. Applies extra checks if NDEBUG is not defined. */
 BufferHandle MemoryPool::allocate_buffer_h(VkDeviceSize n_bytes, VkBufferUsageFlags usage_flags, VkSharingMode sharing_mode, VkBufferCreateFlags create_flags)  {
     DENTER("Compute::MemoryPool::allocate_buffer_h");
 
@@ -529,7 +535,7 @@ BufferHandle MemoryPool::allocate_buffer_h(VkDeviceSize n_bytes, VkBufferUsageFl
     DRETURN result;
 }
 
-/* Tries to get a new image from the pool of the given sizes and with the given flags. Applies extra checks if NDEBUG is not defined. */
+/* Tries to get a new image from the pool of the given sizes and with the given flags, returning only its handle. Applies extra checks if NDEBUG is not defined. */
 ImageHandle MemoryPool::allocate_image_h(uint32_t width, uint32_t height, VkFormat image_format, VkImageLayout image_layout, VkImageUsageFlags usage_flags, VkSharingMode sharing_mode, VkImageCreateFlags create_flags) {
     DENTER("Compute::MemoryPool::allocate_image_h");
 

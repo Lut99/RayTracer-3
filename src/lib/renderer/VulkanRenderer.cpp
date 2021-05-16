@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   11/05/2021, 21:02:18
+ *   16/05/2021, 12:52:34
  * Auto updated?
  *   Yes
  *
@@ -60,7 +60,9 @@ struct GCameraData {
 /***** VULKANRENDERER CLASS *****/
 /* Constructor for the VulkanRenderer class. */
 VulkanRenderer::VulkanRenderer() :
-    Renderer()
+    Renderer(),
+    vk_entity_faces(MemoryPool::NullHandle),
+    vk_entity_vertices(MemoryPool::NullHandle)
 {
     DENTER("VulkanRenderer::VulkanRenderer");
     DLOG(info, "Initializing the Vulkan-based renderer...");
@@ -119,7 +121,9 @@ VulkanRenderer::VulkanRenderer() :
 
 /* Copy constructor for the VulkanRenderer class. */
 VulkanRenderer::VulkanRenderer(const VulkanRenderer& other) :
-    Renderer(other)
+    Renderer(other),
+    vk_entity_faces(other.vk_entity_faces),
+    vk_entity_vertices(other.vk_entity_vertices)
 {
     DENTER("VulkanRenderer::VulkanRenderer(copy)");
 
@@ -143,6 +147,15 @@ VulkanRenderer::VulkanRenderer(const VulkanRenderer& other) :
     // And copy command buffers
     this->staging_cb_h = this->memory_command_pool->allocate();
 
+    // Copy the entity buffers, if any
+    if (other.vk_entity_faces != MemoryPool::NullHandle) {
+        this->vk_entity_faces = this->device_memory_pool->allocate_buffer_h(other.device_memory_pool->deref_buffer(other.vk_entity_faces));
+    }
+    if (other.vk_entity_vertices != MemoryPool::NullHandle) {
+        this->vk_entity_vertices = this->device_memory_pool->allocate_buffer_h(other.device_memory_pool->deref_buffer(other.vk_entity_vertices));
+    }
+
+    // Done, return
     DLEAVE;
 }
 
@@ -158,7 +171,9 @@ VulkanRenderer::VulkanRenderer(VulkanRenderer&& other) :
     memory_command_pool(other.memory_command_pool),
     insert_dsl(other.insert_dsl),
     raytrace_dsl(other.raytrace_dsl),
-    staging_cb_h(other.staging_cb_h)
+    staging_cb_h(other.staging_cb_h),
+    vk_entity_faces(other.vk_entity_faces),
+    vk_entity_vertices(other.vk_entity_vertices)
 {
     // Set the other's deallocateable pointers to nullptrs to avoid just that
     other.instance = nullptr;
@@ -220,22 +235,48 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
     DLOG(info, "Pre-rendering entities...");
     DINDENT;
 
-    // We start by throwing out any old vertices we might have
-    this->entity_faces.clear();
-    this->entity_vertices.clear();
+    // First, if any, deallocate the old buffers
+    if (this->vk_entity_faces != MemoryPool::NullHandle) {
+        this->device_memory_pool->deallocate(this->vk_entity_faces);
+    }
+    if (this->vk_entity_vertices != MemoryPool::NullHandle) {
+        this->device_memory_pool->deallocate(this->vk_entity_vertices);
+    }
 
-    // Prepare the buffers for the per-entity vertices
-    Tools::Array<Face> faces;
-    Tools::Array<GFace> gfaces;
-    Tools::Array<glm::vec4> gvertices;
+    // Next, loop through all the entities to find out the total number of faces & vertices we'll get
+    uint32_t n_faces = 0;
+    uint32_t n_vertices = 0;
+    for (size_t i = 0; i < entities.size(); i++) {
+        switch(entities[i]->type) {
+            case et_triangle:
+                // Get the size of the triangle
+                get_size_triangle(n_faces, n_vertices, (Triangle*) entities[i]);
+
+            case et_sphere:
+                // Get the size of the sphere
+                get_size_sphere(n_faces, n_vertices, (Sphere*) entities[i]);
+
+            case et_object:
+                // Get the size of the object
+                get_size_object(n_faces, n_vertices, (Object*) entities[i]);
+
+            default:
+                DLOG(fatal, "Unknown entity type '" + entity_type_names[entities[i]->type] + "' for entity at index " + std::to_string(i));
+
+        }
+    }
+
+    // With the size, initialize the two output buffers
+    this->vk_entity_faces = this->device_memory_pool->allocate_buffer_h(n_faces * sizeof(GFace), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    Buffer vk_entity_faces = this->device_memory_pool->deref_buffer(this->vk_entity_faces);
+    this->vk_entity_vertices = this->device_memory_pool->allocate_buffer_h(n_vertices * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    Buffer vk_entity_vertices = this->device_memory_pool->deref_buffer(this->vk_entity_vertices);
+
+    // Prepare a suite of the GPU-related structures to pass to GPU-enabled functions as necessary
+    Compute::Suite suite = this->get_suite();
 
     // Next, loop through all entities to render them
     for (size_t i = 0; i < entities.size(); i++) {
-        // Clean the temporary buffers
-        faces.clear();
-        gfaces.clear();
-        gvertices.clear();
-
         // Select the proper pre-render mode
         if (entities[i]->pre_render_mode & EntityPreRenderModeFlags::eprmf_gpu) {
             // Determine the type of pre-rendering operation we need to do
@@ -244,12 +285,7 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
                     /* Prepare the pipeline using this shader. */
                     gpu_pre_render_sphere(
                         faces,
-                        *this->gpu,
-                        *this->device_memory_pool,
-                        *this->stage_memory_pool,
-                        *this->descriptor_pool,
-                        *this->compute_command_pool,
-                        (*this->memory_command_pool)[this->staging_cb_h],
+                        suite,
                         (Sphere*) entities[i]
                     );
                     break;
@@ -489,6 +525,9 @@ void RayTracer::swap(VulkanRenderer& r1, VulkanRenderer& r2) {
     swap(r1.insert_dsl, r2.insert_dsl);
     swap(r1.raytrace_dsl, r2.raytrace_dsl);
     swap(r1.staging_cb_h, r2.staging_cb_h);
+
+    swap(r1.vk_entity_faces, r2.vk_entity_faces);
+    swap(r1.vk_entity_vertices, r2.vk_entity_vertices);
 
     // Done
 }

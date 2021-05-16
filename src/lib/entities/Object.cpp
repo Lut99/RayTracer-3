@@ -4,7 +4,7 @@
  * Created:
  *   06/05/2021, 16:51:56
  * Last edited:
- *   06/05/2021, 18:09:04
+ *   16/05/2021, 12:50:11
  * Auto updated?
  *   Yes
  *
@@ -112,6 +112,8 @@ void ECS::cpu_pre_render_object(Tools::Array<GFace>& faces, Tools::Array<glm::ve
                 glm::vec3(0.0, 0.0, 0.0),
                 obj->color
             });
+        } else {
+            DLOG(warning, (std::string("Encountered line with unknown type '") += type) + "'");
         }
 
         // Increment the line to progress
@@ -136,5 +138,52 @@ void ECS::cpu_pre_render_object(Tools::Array<GFace>& faces, Tools::Array<glm::ve
     }
 
     // We're done
+    DRETURN;
+}
+
+
+
+/* Returns the number of faces & vertices for this object, appended to the given integers. */
+void get_size_object(uint32_t& n_faces, uint32_t& n_vertices, Object* obj) {
+    DENTER("ECS::get_size_object");
+
+    // Try to open a file handle
+    std::ifstream h(obj->file_path);
+    if (!h.is_open()) {
+        DLOG(fatal, "Could not open file: " + std::string(strerror(errno)));
+    }
+
+    // Start looping through it
+    size_t line_i = 1;
+    std::string line;
+    while(std::getline(h, line)) {
+        // First, try to parse the whole line as a triplet of floats with a character before it
+        std::stringstream sstr(line);
+        char type;
+        float v1, v2, v3;
+        if (!(sstr >> type >> v1 >> v2 >> v3)) {
+            DLOG(fatal, "Encountered unreadable line on line " + std::to_string(line_i));
+        }
+        (void) v1;
+        (void) v2;
+        (void) v3;
+
+        // Examine the correct mode
+        if (type == 'v') {
+            // It's a vertex
+            ++n_vertices;
+        } else if (type == 'f') {
+            // It's a face
+            ++n_faces;
+        }
+        // We ignore the warning since we'll pre-render it later anyway
+
+        // Increment the line to progress
+        line_i++;
+    }
+
+    // When done, close the file
+    h.close();
+
     DRETURN;
 }

@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:28
  * Last edited:
- *   10/05/2021, 13:27:07
+ *   16/05/2021, 12:19:29
  * Auto updated?
  *   Yes
  *
@@ -22,6 +22,7 @@
 #include "compute/MemoryPool.hpp"
 #include "compute/DescriptorPool.hpp"
 #include "compute/CommandPool.hpp"
+#include "compute/Suite.hpp"
 
 #include "Vertex.hpp"
 #include "Renderer.hpp"
@@ -65,6 +66,11 @@ namespace RayTracer {
         /* Command buffer that is used to schedule staging-related memory transfers on. */
         Compute::CommandBufferHandle staging_cb_h;
 
+        /* GPU-side buffer that stores all the pre-rendered faces from all entities, ready for rendering. */
+        Compute::BufferHandle vk_entity_faces;
+        /* GPU-side buffer that stores all the pre-rendered vertices from all entities, ready for rendering. */
+        Compute::BufferHandle vk_entity_vertices;
+
     public:
         /* Constructor for the VulkanRenderer class. */
         VulkanRenderer();
@@ -79,6 +85,9 @@ namespace RayTracer {
         virtual void prerender(const Tools::Array<ECS::RenderEntity*>& entities);
         /* Renders the internal list of vertices to a frame using the given camera position. */
         virtual void render(Camera& camera) const;
+
+        /* Returns a new Compute::Suite from the elements in this renderer. Useful for passing the data to pre-render functions. */
+        inline Compute::Suite get_suite() const { return Compute::Suite{ *this->gpu, *this->device_memory_pool, *this->stage_memory_pool, *this->descriptor_pool, *this->compute_command_pool, (*this->memory_command_pool)[this->staging_cb_h] }; }
 
         /* Copy assignment operator for the VulkanRenderer class. */
         virtual VulkanRenderer& operator=(const VulkanRenderer& other) { return *this = VulkanRenderer(other); }

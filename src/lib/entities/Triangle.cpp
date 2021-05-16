@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 13:35:10
  * Last edited:
- *   06/05/2021, 18:08:50
+ *   16/05/2021, 12:45:08
  * Auto updated?
  *   Yes
  *
@@ -67,3 +67,15 @@ void ECS::cpu_pre_render_triangle(Tools::Array<Face>& faces, Triangle* triangle)
     DRETURN;
 }
 
+
+
+/* Returns the number of faces & vertices for this triangle appended to the given integers. */
+void ECS::get_size_triangle(uint32_t& n_faces, uint32_t& n_vertices, Triangle* triangle) {
+    DENTER("ECS::get_size_triangle");
+
+    n_faces += 1;
+    n_vertices += 3;
+    (void) triangle;
+
+    DRETURN;
+}
