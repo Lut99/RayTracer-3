@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 15:25:06
  * Last edited:
- *   19/05/2021, 17:53:43
+ *   19/05/2021, 20:41:42
  * Auto updated?
  *   Yes
  *
@@ -27,17 +27,33 @@ using namespace RayTracer::ECS;
 using namespace CppDebugger::SeverityValues;
 
 
+/***** MACROS *****/
+/* Macro that implements a very fast dot-product between two vec3 vectors. */
+#define dot3(V1, V2) \
+    ((V1).x * (V2).x + (V1).y * (V2).y + (V1).z * (V2).z)
+
+
+
+
+
 /***** RAYTRACING FUNCTIONS *****/
+/* @brief Computes the color of a pixel, as if a ray was shot out of it and it could have hit any of the faces in our mesh.
+ * @param faces The list of faces against we may hit.
+ * @param vertices The list of vertices referenced by the faces.
+ * @param origin The origin of the ray.
+ * @param direction The (normalized) direction of the ray.
+ * @return The color as a three-dimensional vector.
+ */
 glm::vec3 ray_color(const Tools::Array<GFace>& faces, const Tools::Array<glm::vec4>& vertices, glm::vec3 origin, glm::vec3 direction) {
     DENTER("ray_color");
 
     // Loop through the vertices so find any one we hit
     uint min_i = 0;
-    float min_t = INFINITY;
+    float min_t = 1e99;
     for (size_t i = 0; i < faces.size(); i++) {
         // First, check if the ray happens to be perpendicular to the triangle's plane
         glm::vec3 normal = faces[i].normal;
-        if (dot(direction, normal) == 0) {
+        if (dot3(direction, normal) == 0) {
             // No intersection for sure
             continue;
         }
@@ -48,30 +64,29 @@ glm::vec3 ray_color(const Tools::Array<GFace>& faces, const Tools::Array<glm::ve
         glm::vec3 p3 = vertices[faces[i].v3];
 
         // Otherwise, compute the distance point of the plane
-        float plane_distance = dot(normal, p1);
+        float plane_distance = dot3(normal, p1);
 
         // Use that to compute the distance the ray travels before it hits the plane
-        float t = (dot(normal, origin) + plane_distance) / dot(normal, direction);
+        float t = (dot3(normal, origin) + plane_distance) / dot3(normal, direction);
         if (t < 0 || t >= min_t) {
-            // Negative t or a t further than one we already found as closer, so we hit the triangle behind us
+            // Negative t (the face is behind us) or a t further than one we already found, so no need in doing the close check
             continue;
         }
 
         // Now, compute the actual point where we hit the plane
         glm::vec3 hitpoint = origin + t * direction;
 
-        // We can now compute barycentric coordinates from the hitpoint to see if the point is also within the triangle
-        // General idea: https://stackoverflow.com/a/37552406/5270125
-        // First, we compute alpha by finding the area of the triangle spanned by two edges of the triangle and the point we want to find
-        float S = 0.5 * glm::length(glm::cross(p1 - p2, p1 - p3));
-        float alpha = (0.5 * glm::length(glm::cross(p2 - hitpoint, p2 - p3))) / S;
-        float beta = (0.5 * glm::length(glm::cross(hitpoint - p1, hitpoint - p3))) / S;
-        float gamma = (0.5 * glm::length(glm::cross(hitpoint - p1, hitpoint - p2))) / S;
+        // We now perform the inside-out test to see if the triangle is hit within the plane
+        // General idea: https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-rendering-a-triangle/barycentric-coordinates
+        // First, compute various cross products
+        glm::vec3 a = glm::cross(p2 - p1, hitpoint - p1);
+        glm::vec3 b = glm::cross(p3 - p2, hitpoint - p2);
+        glm::vec3 c = glm::cross(p1 - p3, hitpoint - p3);
 
-        // With this, we can perform the actual bounds-check
-        if (alpha >= 0 && alpha <= 1 &&
-            beta  >= 0 && beta  <= 1 &&
-            gamma >= 0 && gamma <= 1)
+        // Use them to check if the hitpoint is in the area
+        if (-dot3(normal, a) >= 0.0 &&
+            -dot3(normal, b) >= 0.0 &&
+            -dot3(normal, c) >= 0.0)
         {
             // It's a hit! Store it as the closest t so far
             min_i = i;
@@ -83,7 +98,7 @@ glm::vec3 ray_color(const Tools::Array<GFace>& faces, const Tools::Array<glm::ve
     }
 
     // If we hit a vertex, return its color
-    if (min_t != INFINITY) {
+    if (min_t < 1e99) {
         DRETURN faces[min_i].color;
     } else {
         // Return the blue sky
@@ -182,13 +197,23 @@ void SequentialRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entit
             }
 
             // Once done, merge them in the general lists
-            this->transfer_entity(this->entity_faces, this->entity_vertices, entity_faces, entity_vertices);            
+            // this->transfer_entity(this->entity_faces, this->entity_vertices, entity_faces, entity_vertices);   
+            this->entity_faces = entity_faces;
+            this->entity_vertices = entity_vertices;         
 
         } else {
             DLOG(fatal, "Entity " + std::to_string(i) + " of type " + entity_type_names[entities[i]->type] + " with the sequential back-end.");
         }
 
         // No need to insert again, as transfer_entity does this for us now
+    }
+
+    cout << "Faces:" << endl;
+    for (size_t i = 0; i < this->entity_faces.size(); i++) {
+        glm::vec3 v1 = this->entity_vertices[this->entity_faces[i].v1];
+        glm::vec3 v2 = this->entity_vertices[this->entity_faces[i].v2];
+        glm::vec3 v3 = this->entity_vertices[this->entity_faces[i].v3];
+        cout << "    x: {" << v1.x << "," << v1.y << "," << v1.z << "}" << " | y: {" << v2.x << "," << v2.y << "," << v2.z << "} | z: {" << v3.x << "," << v3.y << "," << v3.z << "}" << endl;
     }
 
     // We're done! We pre-rendered all objects!
@@ -226,7 +251,7 @@ void SequentialRenderer::render(Camera& camera) const {
             // Compute the ray's color and store it as a vector
             camera.get_frame().d()[y * width + x] = ray_color(this->entity_faces, this->entity_vertices, camera.origin, ray);
 
-            if (i % 1000 == 0) { DLOG(info, "Rendered ray " + std::to_string(i) + "/" + std::to_string(width * height)); }
+            // if (i % 1000 == 0) { DLOG(info, "Rendered ray " + std::to_string(i) + "/" + std::to_string(width * height)); }
             i++;
         }
     }

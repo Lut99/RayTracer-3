@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 12:45:50
  * Last edited:
- *   19/05/2021, 17:25:03
+ *   19/05/2021, 21:23:49
  * Auto updated?
  *   Yes
  *
@@ -55,6 +55,9 @@ struct SphereData {
     alignas(16) glm::vec3 color;
 };
 #endif
+
+#define GLM_STR(V) \
+    ("{" + std::to_string((V).x) + "," + std::to_string((V).y) + "," + std::to_string((V).z) + "}")
 
 
 
@@ -118,115 +121,162 @@ void ECS::cpu_pre_render_sphere(Tools::Array<GFace>& faces_buffer, Tools::Array<
     DLOG(info, "Pre-rendering sphere with " + std::to_string(sphere->n_meridians) + " meridians and " + std::to_string(sphere->n_parallels) + " parallels...");
     DINDENT;
 
-    /* Step 1: Generate the vertices for the sphere. */
-    DLOG(info, "Generating vertices (" + std::to_string(sphere->pre_render_vertices) + " in total)...");
+    // Make shortcuts for the maximum x & y
+    uint32_t max_x = sphere->n_meridians;
+    uint32_t max_y = sphere->n_parallels;
 
-    // First, we generate the north pole
-    uint32_t x = 0, y = 0;
-    uint32_t max_x = sphere->n_meridians, max_y = sphere->n_parallels;
-    vertex_buffer[0] = glm::vec4(compute_point(x, y, sphere), 0.0);
+    // Loop through all coordinates we need to do
+    for (uint32_t y = 1; y < max_y; y++) {
+        for (uint32_t x = 0; x < max_x; x++) {
+            // Compute x & y - 1
+            uint32_t x_m1 = x > 0 ? x - 1 : max_x - 1;
+            uint32_t y_m1 = y - 1;
 
-    // Next, we generate all circles between them
-    for (y = 1; y < max_y - 1; y++) {
-        for (x = 0; x < max_x; x++) {
-            vertex_buffer[1 + (y - 1) * max_x + x] = glm::vec4(compute_point(x, y, sphere), 0.0);
+            // Switch to the correct mode
+            if (y == 1) {
+                // North pole
+
+                // Get the index of the polar point
+                uint32_t p1 = 0;
+                // Get the index of the previous point in this circle
+                uint32_t p2 = 1 + x_m1;
+                // Get the index of the current point in this circle
+                uint32_t p3 = 1 + x;
+
+                if (p1 >= sphere->pre_render_vertices) { DLOG(fatal, "North pole: p1 is out of range (" + std::to_string(p1) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
+                if (p2 >= sphere->pre_render_vertices) { DLOG(fatal, "North pole: p2 is out of range (" + std::to_string(p2) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
+                if (p3 >= sphere->pre_render_vertices) { DLOG(fatal, "North pole: p3 is out of range (" + std::to_string(p3) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
+                if (x >= sphere->pre_render_faces) { DLOG(fatal, "North pole: x is out of range (" + std::to_string(x) + " >= " + std::to_string(sphere->pre_render_faces) + ")"); }
+
+                // Compute the matching points
+                glm::vec3 v1 = compute_point(0, 0, sphere);
+                glm::vec3 v2 = compute_point(x_m1, y, sphere);
+                glm::vec3 v3 = compute_point(x, y, sphere);
+
+                // Compute the normal for these fellas
+                glm::vec3 n = glm::normalize(glm::cross(v3 - v1, v2 - v1));
+                // And finally, compute the color
+                glm::vec3 c = sphere->color * abs(glm::dot(n, glm::vec3(0.0, 0.0, -1.0)));
+
+                // Store the face
+                faces_buffer[x].v1 = p1;
+                faces_buffer[x].v2 = p2;
+                faces_buffer[x].v3 = p3;
+                faces_buffer[x].normal = n;
+                faces_buffer[x].color = c;
+
+                // Store the points
+                vertex_buffer[p1] = glm::vec4(v1, 0.0);
+                vertex_buffer[p2] = glm::vec4(v2, 0.0);
+                vertex_buffer[p3] = glm::vec4(v3, 0.0);
+            } else if (y < max_y) {
+                // // In between two circles
+
+                // First, pre-compute the base index of this layer's vertices in the resulting buffer
+                uint32_t f_index = max_x + 2 * (y - 2) * max_x;
+
+                // Get the index of the previous point in previous circle
+                uint32_t p1 = 1 + (y_m1 - 1) * max_x + x_m1;
+                // Get the index of the current point in previous circle
+                uint32_t p2 = 1 + (y_m1 - 1) * max_x + x;
+                // Get the index of the previous point in this circle
+                uint32_t p3 = 1 + (y - 1) * max_x + x_m1;
+                // Get the index of the current point in this circle
+                uint32_t p4 = 1 + (y - 1) * max_x + x;
+
+                DLOG(info, std::to_string(y));
+                if (p1 >= sphere->pre_render_vertices) { DLOG(fatal, "Circle: p1 is out of range (" + std::to_string(p1) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
+                if (p2 >= sphere->pre_render_vertices) { DLOG(fatal, "Circle: p2 is out of range (" + std::to_string(p2) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
+                if (p3 >= sphere->pre_render_vertices) { DLOG(fatal, "Circle: p3 is out of range (" + std::to_string(p3) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
+                if (p4 >= sphere->pre_render_vertices) { DLOG(fatal, "Circle: p4 is out of range (" + std::to_string(p4) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
+                if (f_index + 2 * x >= sphere->pre_render_faces) { DLOG(fatal, "Circle: 2 * x is out of range (" + std::to_string(f_index + 2 * x) + " >= " + std::to_string(sphere->pre_render_faces) + ")"); }
+                if (f_index + 2 * x + 1 >= sphere->pre_render_faces) { DLOG(fatal, "Circle: 2 * x + 1 is out of range (" + std::to_string(f_index + 2 * x + 1) + " >= " + std::to_string(sphere->pre_render_faces) + ")"); }
+                
+                // Compute the matching points
+                glm::vec3 v1 = compute_point(x_m1, y_m1, sphere);
+                glm::vec3 v2 = compute_point(x, y_m1, sphere);
+                glm::vec3 v3 = compute_point(x_m1, y, sphere);
+                glm::vec3 v4 = compute_point(x, y, sphere);
+
+                // Compute the two normals for the two vertices
+                glm::vec3 n1 = glm::normalize(glm::cross(v4 - v1, v3 - v1));
+                glm::vec3 n2 = glm::normalize(glm::cross(v4 - v1, v2 - v1));
+                // And finally, compute the two colors
+                glm::vec3 c1 = sphere->color * abs(glm::dot(n1, glm::vec3(0.0, 0.0, -1.0)));
+                glm::vec3 c2 = sphere->color * abs(glm::dot(n2, glm::vec3(0.0, 0.0, -1.0)));
+
+                // Store both of the faces
+                faces_buffer[f_index + 2 * x].v1 = p1;
+                faces_buffer[f_index + 2 * x].v2 = p3;
+                faces_buffer[f_index + 2 * x].v3 = p4;
+                faces_buffer[f_index + 2 * x].normal = n1;
+                faces_buffer[f_index + 2 * x].color = c1;
+
+                faces_buffer[f_index + 2 * x + 1].v1 = p1;
+                faces_buffer[f_index + 2 * x + 1].v2 = p2;
+                faces_buffer[f_index + 2 * x + 1].v3 = p4;
+                faces_buffer[f_index + 2 * x + 1].normal = n2;
+                faces_buffer[f_index + 2 * x + 1].color = c2;
+
+                // Store the points
+                vertex_buffer[p1] = glm::vec4(v1, 0.0);
+                vertex_buffer[p2] = glm::vec4(v2, 0.0);
+                vertex_buffer[p3] = glm::vec4(v3, 0.0);
+                vertex_buffer[p4] = glm::vec4(v4, 0.0);
+
+                // // Store them both
+                // faces_buffer[f_index + 2 * x].v1 = 0;
+                // faces_buffer[f_index + 2 * x].v2 = 0;
+                // faces_buffer[f_index + 2 * x].v3 = 0;
+                // faces_buffer[f_index + 2 * x].normal = glm::vec3(0.0, 0.0, 0.0);
+                // faces_buffer[f_index + 2 * x].color = glm::vec3(0.0, 0.0, 0.0);
+
+                // faces_buffer[f_index + 2 * x + 1].v1 = 0;
+                // faces_buffer[f_index + 2 * x + 1].v2 = 0;
+                // faces_buffer[f_index + 2 * x + 1].v3 = 0;
+                // faces_buffer[f_index + 2 * x + 1].normal = glm::vec3(0.0, 0.0, 0.0);
+                // faces_buffer[f_index + 2 * x + 1].color = glm::vec3(0.0, 0.0, 0.0);
+            } else {
+                // South pole
+
+                // First, pre-compute the base index of this layer's vertices in the resulting buffer
+                uint32_t f_index = max_x + 2 * (y - 2) * max_x;
+
+                // Get the index of the polar point
+                uint32_t p1 = 1 + (y - 1) * max_x;
+                // Get the index of the previous point in (previous) circle
+                uint32_t p2 = 1 + (y_m1 - 1) * max_x + x_m1;
+                // Get the index of the current point in (previous) circle
+                uint32_t p3 = 1 + (y_m1 - 1) * max_x + x;
+
+                if (p1 >= sphere->pre_render_vertices) { DLOG(fatal, "South pole: p1 is out of range (" + std::to_string(p1) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
+                if (p2 >= sphere->pre_render_vertices) { DLOG(fatal, "South pole: p2 is out of range (" + std::to_string(p2) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
+                if (p3 >= sphere->pre_render_vertices) { DLOG(fatal, "South pole: p3 is out of range (" + std::to_string(p3) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
+                if (f_index + x >= sphere->pre_render_faces) { DLOG(fatal, "South pole: x is out of range (" + std::to_string(f_index + x) + " >= " + std::to_string(sphere->pre_render_faces) + ")"); }
+                
+                // Compute the matching points
+                glm::vec3 v1 = compute_point(0, y, sphere);
+                glm::vec3 v2 = compute_point(x_m1, y_m1, sphere);
+                glm::vec3 v3 = compute_point(x, y_m1, sphere);
+
+                // Compute the normal for these fellas
+                glm::vec3 n = glm::normalize(glm::cross(v3 - v1, v2 - v1));
+                // Finally, compute the color
+                glm::vec3 c = sphere->color * abs(glm::dot(n, glm::vec3(0.0, 0.0, -1.0)));
+
+                // Store as vertex
+                faces_buffer[f_index + x].v1 = p1;
+                faces_buffer[f_index + x].v2 = p2;
+                faces_buffer[f_index + x].v3 = p3;
+                faces_buffer[f_index + x].normal = n;
+                faces_buffer[f_index + x].color = c;
+
+                // Store the points
+                vertex_buffer[p1] = glm::vec4(v1, 0.0);
+                vertex_buffer[p2] = glm::vec4(v2, 0.0);
+                vertex_buffer[p3] = glm::vec4(v3, 0.0);
+            }
         }
-    }
-
-    // Finally, we generate the south pole
-    vertex_buffer[1 + (y - 1) * max_x] = glm::vec4(compute_point(0.0, y, sphere), 0.0);
-
-
-
-    /* Step 2: Create indexed faces from those points. */
-    DLOG(info, "Generating faces...");
-
-    // Set some shortcuts for shader compatibility
-    uint32_t x_m1 = x > 0 ? x - 1 : max_x - 1;
-    uint32_t y_m1 = y - 1;
-    
-    // First, generate the polar cap vertices
-    {
-        // Get the index of the polar point
-        uint32_t p1 = 0;
-        // Get the index of the previous point in this circle
-        uint32_t p2 = 1 + (y - 1) * max_x + x_m1;
-        // Get the index of the current point in this circle
-        uint32_t p3 = 1 + (y - 1) * max_x + x;
-
-        // Compute the normal for these fellas
-        glm::vec3 n = glm::normalize(glm::cross(glm::vec3(vertex_buffer[p3]) - glm::vec3(vertex_buffer[p1]), glm::vec3(vertex_buffer[p2]) - glm::vec3(vertex_buffer[p1])));
-        // And finally, compute the color
-        glm::vec3 c = sphere->color * abs(glm::dot(n, glm::vec3(0.0, 0.0, -1.0)));
-
-        // Store as vertex
-        faces_buffer[x].v1 = p1;
-        faces_buffer[x].v2 = p2;
-        faces_buffer[x].v3 = p3;
-        faces_buffer[x].normal = n;
-        faces_buffer[x].color = c;
-    }
-
-    // Next, generate all points in between the caps
-    for (y = 2; y < max_y; y++) {
-        for (x = 0; x < max_x; x++) {
-            // First, pre-compute the base index of this layer's vertices in the resulting buffer
-            uint32_t f_index = max_x + 2 * (y - 2) * max_x;
-
-            // Get the index of the previous point in previous circle
-            uint32_t p1 = 1 + (y_m1 - 1) * max_x + x_m1;
-            // Get the index of the current point in previous circle
-            uint32_t p2 = 1 + (y_m1 - 1) * max_x + x;
-            // Get the index of the previous point in this circle
-            uint32_t p3 = 1 + (y - 1) * max_x + x_m1;
-            // Get the index of the current point in this circle
-            uint32_t p4 = 1 + (y - 1) * max_x + x;
-
-            // Compute the two normals for the two vertices
-            glm::vec3 n1 = glm::normalize(glm::cross(glm::vec3(vertex_buffer[p4]) - glm::vec3(vertex_buffer[p1]), glm::vec3(vertex_buffer[p3]) - glm::vec3(vertex_buffer[p1])));
-            glm::vec3 n2 = glm::normalize(glm::cross(glm::vec3(vertex_buffer[p4]) - glm::vec3(vertex_buffer[p1]), glm::vec3(vertex_buffer[p2]) - glm::vec3(vertex_buffer[p1])));
-            // And finally, compute the two colors
-            glm::vec3 c1 = sphere->color * abs(glm::dot(n1, glm::vec3(0.0, 0.0, -1.0)));
-            glm::vec3 c2 = sphere->color * abs(glm::dot(n2, glm::vec3(0.0, 0.0, -1.0)));
-
-            // Store them both
-            faces_buffer[f_index + 2 * x].v1 = p1;
-            faces_buffer[f_index + 2 * x].v2 = p3;
-            faces_buffer[f_index + 2 * x].v3 = p4;
-            faces_buffer[f_index + 2 * x].normal = n1;
-            faces_buffer[f_index + 2 * x].color = c1;
-
-            faces_buffer[f_index + 2 * x + 1].v1 = p1;
-            faces_buffer[f_index + 2 * x + 1].v2 = p2;
-            faces_buffer[f_index + 2 * x + 1].v3 = p4;
-            faces_buffer[f_index + 2 * x + 1].normal = n2;
-            faces_buffer[f_index + 2 * x + 1].color = c2;
-        }
-    }
-
-    // Finally, generate the south pole points
-    {
-        // Compute some indices first
-        uint32_t f_index = max_x + 2 * (y - 2) * max_x;
-
-        // Get the index of the polar point
-        uint32_t p1 = 1 + (y - 1) * max_x;
-        // Get the index of the previous point in (previous) circle
-        uint32_t p2 = 1 + (y_m1 - 1) * max_x + x_m1;
-        // Get the index of the current point in (previous) circle
-        uint32_t p3 = 1 + (y_m1 - 1) * max_x + x;
-
-        // Compute the normal for these fellas
-        glm::vec3 n = glm::normalize(glm::cross(glm::vec3(vertex_buffer[p3]) - glm::vec3(vertex_buffer[p1]), glm::vec3(vertex_buffer[p2]) - glm::vec3(vertex_buffer[p1])));
-        // Finally, compute the color
-        glm::vec3 c = sphere->color * abs(glm::dot(n, glm::vec3(0.0, 0.0, -1.0)));
-
-        // Store as vertex
-        faces_buffer[f_index + x].v1 = p1;
-        faces_buffer[f_index + x].v2 = p2;
-        faces_buffer[f_index + x].v3 = p3;
-        faces_buffer[f_index + x].normal = n;
-        faces_buffer[f_index + x].color = c;
     }
 
 

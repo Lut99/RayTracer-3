@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   06/05/2021, 18:21:58
+ *   19/05/2021, 20:42:10
  * Auto updated?
  *   Yes
  *
@@ -274,8 +274,10 @@ int main(int argc, const char** argv) {
         
 
         // Prerender the frame
-        Tools::Array<ECS::RenderEntity*> entities({ ECS::create_object("bin/objects/teddy.obj", {0.0, 0.0, -3.0}, 1.0 / 17.0, {1.0, 0.0, 0.0}) });
-        renderer->prerender(entities); 
+        // Tools::Array<ECS::RenderEntity*> entities({ ECS::create_object("bin/objects/teddy.obj", {0.0, 0.0, -3.0}, 1.0 / 17.0, {1.0, 0.0, 0.0}) });
+        Tools::Array<ECS::RenderEntity*> entities({ ECS::create_sphere({ 0.0, 0.0, -3.0 }, 1.0, 4, 4, { 1.0, 0.0, 0.0 }) });
+        // Tools::Array<ECS::RenderEntity*> entities({ ECS::create_triangle({ 1.0, 0.0, -3.0 }, { -1.0, 0.0, -3.0 }, { 0.0, 1.0, -3.0 }, { 1.0, 0.0, 0.0 }) });
+        renderer->prerender(entities);
         renderer->render(cam);
         for (size_t i = 0; i < entities.size(); i++) {
             delete entities[i];
