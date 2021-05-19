@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 12:45:50
  * Last edited:
- *   16/05/2021, 12:46:34
+ *   19/05/2021, 17:25:03
  * Auto updated?
  *   Yes
  *
@@ -93,6 +93,9 @@ Sphere* ECS::create_sphere(const glm::vec3& center, float radius, uint32_t n_mer
     result->pre_render_mode = result->pre_render_mode | EntityPreRenderModeFlags::eprmf_gpu;
     #endif
     result->pre_render_operation = EntityPreRenderOperation::epro_generate_sphere;
+    // Compute how many faces & vertices to generate
+    result->pre_render_faces = n_meridians + 2 * ((n_parallels - 2) * n_meridians) + n_meridians;
+    result->pre_render_vertices = 2 + (n_parallels - 2) * n_meridians;
 
     // Set the conceptual properties of the sphere
     result->center = center;
@@ -109,101 +112,214 @@ Sphere* ECS::create_sphere(const glm::vec3& center, float radius, uint32_t n_mer
 
 
 
-/* Pre-renders the sphere on the CPU, single-threaded. */
-void ECS::cpu_pre_render_sphere(Tools::Array<Face>& faces, Sphere* sphere) {
+/* Pre-renders the sphere on the CPU, single-threaded, and returns a list of CPU-side buffers with the GFaces and the vertices. Assumes the given buffers contains irrelevant data, and already have the correct size. */
+void ECS::cpu_pre_render_sphere(Tools::Array<GFace>& faces_buffer, Tools::Array<glm::vec4>& vertex_buffer, Sphere* sphere) {
     DENTER("ECS::cpu_pre_render_sphere");
     DLOG(info, "Pre-rendering sphere with " + std::to_string(sphere->n_meridians) + " meridians and " + std::to_string(sphere->n_parallels) + " parallels...");
+    DINDENT;
 
-    // We implement a standard / UV sphere for simplicity
-    size_t n_vertices = sphere->n_meridians + 2 * ((sphere->n_parallels - 2) * sphere->n_meridians) + sphere->n_meridians;
-    faces.reserve(n_vertices);
+    /* Step 1: Generate the vertices for the sphere. */
+    DLOG(info, "Generating vertices (" + std::to_string(sphere->pre_render_vertices) + " in total)...");
 
-    // First, generate all vertices around the north pole
-    uint32_t p = 1;
-    for (uint32_t m = 0; m < sphere->n_meridians; m++) {
-        // Compute the polar point
-        glm::vec3 p1 = sphere->center + glm::vec3(0.0, sphere->radius, 0.0);
-        // Compute the previous point in this circle
-        glm::vec3 p2 = compute_point(m > 0 ? m - 1 : sphere->n_meridians - 1, p, sphere);
-        // Compute the current point in this circle
-        glm::vec3 p3 = compute_point(m, p, sphere);
+    // First, we generate the north pole
+    uint32_t x = 0, y = 0;
+    uint32_t max_x = sphere->n_meridians, max_y = sphere->n_parallels;
+    vertex_buffer[0] = glm::vec4(compute_point(x, y, sphere), 0.0);
 
-        // Compute the normal for these fellas
-        glm::vec3 n = glm::normalize(glm::cross(p3 - p1, p2 - p1));
-        // And finally, compute the color
-        glm::vec3 c = sphere->color * glm::abs(glm::dot(n, glm::vec3(0.0, 0.0, -1.0)));
-
-        // Store as vertex
-        faces.push_back({
-            p1, p2, p3,
-            n,
-            c
-        });
-        if (m == 8) break;
-    }
-    
-    // Next, generate the vertices for the circles not around the poles
-    for (p = 2; p < sphere->n_parallels; p++) {
-        for (uint32_t m = 0; m < sphere->n_meridians; m++) {
-            // Compute the previous point of the previous layer
-            glm::vec3 p1 = compute_point(m > 0 ? m - 1 : sphere->n_meridians - 1, p - 1, sphere);
-            // Compute the current point of the previous layer
-            glm::vec3 p2 = compute_point(m, p - 1, sphere);
-            // Compute the previous point of the current layer
-            glm::vec3 p3 = compute_point(m > 0 ? m - 1 : sphere->n_meridians - 1, p, sphere);
-            // Compute the current point of the current layer
-            glm::vec3 p4 = compute_point(m, p, sphere);
-
-            // Compute the two normals for the two vertices
-            glm::vec3 n1 = glm::normalize(glm::cross(p4 - p1, p3 - p1));
-            glm::vec3 n2 = glm::normalize(glm::cross(p4 - p1, p2 - p1));
-            // And finally, compute the two colors
-            glm::vec3 c1 = sphere->color * glm::abs(glm::dot(n1, glm::vec3(0.0, 0.0, -1.0)));
-            glm::vec3 c2 = sphere->color * glm::abs(glm::dot(n2, glm::vec3(0.0, 0.0, -1.0)));
-
-            // Store as vertices
-            faces.push_back({
-                p1, p3, p4,
-                n1,
-                c1
-            });
-            faces.push_back({
-                p1, p2, p4,
-                n2,
-                c2
-            });
+    // Next, we generate all circles between them
+    for (y = 1; y < max_y - 1; y++) {
+        for (x = 0; x < max_x; x++) {
+            vertex_buffer[1 + (y - 1) * max_x + x] = glm::vec4(compute_point(x, y, sphere), 0.0);
         }
     }
 
-    // Finally, generate the vertices around the south pole
-    for (uint32_t m = 0; m < sphere->n_meridians; m++) {
-        // Compute the polar point
-        glm::vec3 p1 = sphere->center - glm::vec3(0.0, sphere->radius, 0.0);
-        // Compute the previous point in the (previous) circle
-        glm::vec3 p2 = compute_point(m > 0 ? m - 1 : sphere->n_meridians - 1, p, sphere);
-        // Compute the current point in the (previous) circle
-        glm::vec3 p3 = compute_point(m, p, sphere);
+    // Finally, we generate the south pole
+    vertex_buffer[1 + (y - 1) * max_x] = glm::vec4(compute_point(0.0, y, sphere), 0.0);
+
+
+
+    /* Step 2: Create indexed faces from those points. */
+    DLOG(info, "Generating faces...");
+
+    // Set some shortcuts for shader compatibility
+    uint32_t x_m1 = x > 0 ? x - 1 : max_x - 1;
+    uint32_t y_m1 = y - 1;
+    
+    // First, generate the polar cap vertices
+    {
+        // Get the index of the polar point
+        uint32_t p1 = 0;
+        // Get the index of the previous point in this circle
+        uint32_t p2 = 1 + (y - 1) * max_x + x_m1;
+        // Get the index of the current point in this circle
+        uint32_t p3 = 1 + (y - 1) * max_x + x;
 
         // Compute the normal for these fellas
-        glm::vec3 n = glm::normalize(glm::cross(p3 - p1, p2 - p1));
-        // Finally, compute the color
-        glm::vec3 c = sphere->color * glm::abs(glm::dot(n, glm::vec3(0.0, 0.0, -1.0)));
+        glm::vec3 n = glm::normalize(glm::cross(glm::vec3(vertex_buffer[p3]) - glm::vec3(vertex_buffer[p1]), glm::vec3(vertex_buffer[p2]) - glm::vec3(vertex_buffer[p1])));
+        // And finally, compute the color
+        glm::vec3 c = sphere->color * abs(glm::dot(n, glm::vec3(0.0, 0.0, -1.0)));
 
         // Store as vertex
-        faces.push_back({
-            p1, p2, p3,
-            n,
-            c
-        });
+        faces_buffer[x].v1 = p1;
+        faces_buffer[x].v2 = p2;
+        faces_buffer[x].v3 = p3;
+        faces_buffer[x].normal = n;
+        faces_buffer[x].color = c;
     }
+
+    // Next, generate all points in between the caps
+    for (y = 2; y < max_y; y++) {
+        for (x = 0; x < max_x; x++) {
+            // First, pre-compute the base index of this layer's vertices in the resulting buffer
+            uint32_t f_index = max_x + 2 * (y - 2) * max_x;
+
+            // Get the index of the previous point in previous circle
+            uint32_t p1 = 1 + (y_m1 - 1) * max_x + x_m1;
+            // Get the index of the current point in previous circle
+            uint32_t p2 = 1 + (y_m1 - 1) * max_x + x;
+            // Get the index of the previous point in this circle
+            uint32_t p3 = 1 + (y - 1) * max_x + x_m1;
+            // Get the index of the current point in this circle
+            uint32_t p4 = 1 + (y - 1) * max_x + x;
+
+            // Compute the two normals for the two vertices
+            glm::vec3 n1 = glm::normalize(glm::cross(glm::vec3(vertex_buffer[p4]) - glm::vec3(vertex_buffer[p1]), glm::vec3(vertex_buffer[p3]) - glm::vec3(vertex_buffer[p1])));
+            glm::vec3 n2 = glm::normalize(glm::cross(glm::vec3(vertex_buffer[p4]) - glm::vec3(vertex_buffer[p1]), glm::vec3(vertex_buffer[p2]) - glm::vec3(vertex_buffer[p1])));
+            // And finally, compute the two colors
+            glm::vec3 c1 = sphere->color * abs(glm::dot(n1, glm::vec3(0.0, 0.0, -1.0)));
+            glm::vec3 c2 = sphere->color * abs(glm::dot(n2, glm::vec3(0.0, 0.0, -1.0)));
+
+            // Store them both
+            faces_buffer[f_index + 2 * x].v1 = p1;
+            faces_buffer[f_index + 2 * x].v2 = p3;
+            faces_buffer[f_index + 2 * x].v3 = p4;
+            faces_buffer[f_index + 2 * x].normal = n1;
+            faces_buffer[f_index + 2 * x].color = c1;
+
+            faces_buffer[f_index + 2 * x + 1].v1 = p1;
+            faces_buffer[f_index + 2 * x + 1].v2 = p2;
+            faces_buffer[f_index + 2 * x + 1].v3 = p4;
+            faces_buffer[f_index + 2 * x + 1].normal = n2;
+            faces_buffer[f_index + 2 * x + 1].color = c2;
+        }
+    }
+
+    // Finally, generate the south pole points
+    {
+        // Compute some indices first
+        uint32_t f_index = max_x + 2 * (y - 2) * max_x;
+
+        // Get the index of the polar point
+        uint32_t p1 = 1 + (y - 1) * max_x;
+        // Get the index of the previous point in (previous) circle
+        uint32_t p2 = 1 + (y_m1 - 1) * max_x + x_m1;
+        // Get the index of the current point in (previous) circle
+        uint32_t p3 = 1 + (y_m1 - 1) * max_x + x;
+
+        // Compute the normal for these fellas
+        glm::vec3 n = glm::normalize(glm::cross(glm::vec3(vertex_buffer[p3]) - glm::vec3(vertex_buffer[p1]), glm::vec3(vertex_buffer[p2]) - glm::vec3(vertex_buffer[p1])));
+        // Finally, compute the color
+        glm::vec3 c = sphere->color * abs(glm::dot(n, glm::vec3(0.0, 0.0, -1.0)));
+
+        // Store as vertex
+        faces_buffer[f_index + x].v1 = p1;
+        faces_buffer[f_index + x].v2 = p2;
+        faces_buffer[f_index + x].v3 = p3;
+        faces_buffer[f_index + x].normal = n;
+        faces_buffer[f_index + x].color = c;
+    }
+
+
+    // // We implement a standard / UV sphere for simplicity
+    // size_t n_vertices = sphere->n_meridians + 2 * ((sphere->n_parallels - 2) * sphere->n_meridians) + sphere->n_meridians;
+    // faces.reserve(n_vertices);
+
+    // // First, generate all vertices around the north pole
+    // uint32_t p = 1;
+    // for (uint32_t m = 0; m < sphere->n_meridians; m++) {
+    //     // Compute the polar point
+    //     glm::vec3 p1 = sphere->center + glm::vec3(0.0, sphere->radius, 0.0);
+    //     // Compute the previous point in this circle
+    //     glm::vec3 p2 = compute_point(m > 0 ? m - 1 : sphere->n_meridians - 1, p, sphere);
+    //     // Compute the current point in this circle
+    //     glm::vec3 p3 = compute_point(m, p, sphere);
+
+    //     // Compute the normal for these fellas
+    //     glm::vec3 n = glm::normalize(glm::cross(p3 - p1, p2 - p1));
+    //     // And finally, compute the color
+    //     glm::vec3 c = sphere->color * glm::abs(glm::dot(n, glm::vec3(0.0, 0.0, -1.0)));
+
+    //     // Store as vertex
+    //     faces.push_back({
+    //         p1, p2, p3,
+    //         n,
+    //         c
+    //     });
+    //     if (m == 8) break;
+    // }
+    
+    // // Next, generate the vertices for the circles not around the poles
+    // for (p = 2; p < sphere->n_parallels; p++) {
+    //     for (uint32_t m = 0; m < sphere->n_meridians; m++) {
+    //         // Compute the previous point of the previous layer
+    //         glm::vec3 p1 = compute_point(m > 0 ? m - 1 : sphere->n_meridians - 1, p - 1, sphere);
+    //         // Compute the current point of the previous layer
+    //         glm::vec3 p2 = compute_point(m, p - 1, sphere);
+    //         // Compute the previous point of the current layer
+    //         glm::vec3 p3 = compute_point(m > 0 ? m - 1 : sphere->n_meridians - 1, p, sphere);
+    //         // Compute the current point of the current layer
+    //         glm::vec3 p4 = compute_point(m, p, sphere);
+
+    //         // Compute the two normals for the two vertices
+    //         glm::vec3 n1 = glm::normalize(glm::cross(p4 - p1, p3 - p1));
+    //         glm::vec3 n2 = glm::normalize(glm::cross(p4 - p1, p2 - p1));
+    //         // And finally, compute the two colors
+    //         glm::vec3 c1 = sphere->color * glm::abs(glm::dot(n1, glm::vec3(0.0, 0.0, -1.0)));
+    //         glm::vec3 c2 = sphere->color * glm::abs(glm::dot(n2, glm::vec3(0.0, 0.0, -1.0)));
+
+    //         // Store as vertices
+    //         faces.push_back({
+    //             p1, p3, p4,
+    //             n1,
+    //             c1
+    //         });
+    //         faces.push_back({
+    //             p1, p2, p4,
+    //             n2,
+    //             c2
+    //         });
+    //     }
+    // }
+
+    // // Finally, generate the vertices around the south pole
+    // for (uint32_t m = 0; m < sphere->n_meridians; m++) {
+    //     // Compute the polar point
+    //     glm::vec3 p1 = sphere->center - glm::vec3(0.0, sphere->radius, 0.0);
+    //     // Compute the previous point in the (previous) circle
+    //     glm::vec3 p2 = compute_point(m > 0 ? m - 1 : sphere->n_meridians - 1, p, sphere);
+    //     // Compute the current point in the (previous) circle
+    //     glm::vec3 p3 = compute_point(m, p, sphere);
+
+    //     // Compute the normal for these fellas
+    //     glm::vec3 n = glm::normalize(glm::cross(p3 - p1, p2 - p1));
+    //     // Finally, compute the color
+    //     glm::vec3 c = sphere->color * glm::abs(glm::dot(n, glm::vec3(0.0, 0.0, -1.0)));
+
+    //     // Store as vertex
+    //     faces.push_back({
+    //         p1, p2, p3,
+    //         n,
+    //         c
+    //     });
+    // }
 
     // Done!
     DRETURN;
 }
 
 #ifdef ENABLE_VULKAN
-/* Pre-renders the sphere on the GPU using Vulkan compute shaders. */
-void ECS::gpu_pre_render_sphere(Compute::BufferHandle& faces_buffer, Compute::BufferHandle& vertex_buffer, Compute::Suite& gpu, Sphere* sphere) {
+/* Pre-renders the sphere on the GPU using Vulkan compute shaders. Uses the given GPU-allocated buffers as target buffers, so we won't have to get the stuff back to the CPU. The given offsets specify from where the pre-rendering is safe to put its results, up until that offset plus the specified size in the Sphere. */
+void ECS::gpu_pre_render_sphere(const Compute::Buffer& faces_buffer, uint32_t faces_offset, const Compute::Buffer& vertex_buffer, uint32_t vertex_offset, Compute::Suite& gpu, Sphere* sphere) {
     DENTER("ECS::gpu_pre_render_sphere");
     DLOG(info, "Pre-rendering sphere with " + std::to_string(sphere->n_meridians) + " meridians and " + std::to_string(sphere->n_parallels) + " parallels...");
     DINDENT;
@@ -240,30 +356,9 @@ void ECS::gpu_pre_render_sphere(Compute::BufferHandle& faces_buffer, Compute::Bu
     // We don't need the staging buffer anymore as we won't retrieve anything, so deallocate it
     gpu.stage_memory_pool.deallocate(staging);
 
-    
-
-    /* Step 3: Prepare the output buffers. */
-    DLOG(info, "Preparing output buffers...");
-    DINDENT;
-
-    // Next, we allocate the faces & vertex buffers
-    size_t gfaces_count = sphere->n_meridians + 2 * ((sphere->n_parallels - 2) * sphere->n_meridians) + sphere->n_meridians;
-    size_t gfaces_size = gfaces_count * sizeof(GFace);
-    Buffer gfaces = gpu.device_memory_pool.allocate_buffer(gfaces_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    faces_buffer = gfaces.handle();
-    DLOG(info, "Face buffer is " + std::to_string(gfaces_size / sizeof(GFace)) + " elements (" + std::to_string(gfaces_size) + " bytes)");
-
-    size_t gvertices_count = 2 + (sphere->n_parallels - 2) * sphere->n_meridians;
-    size_t gvertices_size = gvertices_count * sizeof(glm::vec4);
-    Buffer gvertices = gpu.device_memory_pool.allocate_buffer(gvertices_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    vertex_buffer = gvertices.handle();
-    DLOG(info, "Vertex buffer is " + std::to_string(gvertices_size / sizeof(glm::vec4)) + "elements (" + std::to_string(gvertices_size) + " bytes)");
-    
-    DDEDENT;
 
 
-
-    /* Step 4: Set the DescriptorSet. */
+    /* Step 3: Set the DescriptorSet. */
     DLOG(info, "Preparing descriptor sets...");
     
     // First, define a layout
@@ -276,8 +371,8 @@ void ECS::gpu_pre_render_sphere(Compute::BufferHandle& faces_buffer, Compute::Bu
     // Next, bind a descriptor set
     DescriptorSet descriptor_set = gpu.descriptor_pool.allocate(layout);
     descriptor_set.set(gpu.gpu, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 0, Tools::Array<Buffer>({ gsphere }));
-    descriptor_set.set(gpu.gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, Tools::Array<Buffer>({ gfaces }));
-    descriptor_set.set(gpu.gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, Tools::Array<Buffer>({ gvertices }));
+    descriptor_set.set(gpu.gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, Tools::Array<Buffer>({ faces_buffer }));
+    descriptor_set.set(gpu.gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, Tools::Array<Buffer>({ vertex_buffer }));
 
 
 
@@ -289,12 +384,19 @@ void ECS::gpu_pre_render_sphere(Compute::BufferHandle& faces_buffer, Compute::Bu
         Pipeline pipeline_vertices(
             gpu.gpu,
             Shader(gpu.gpu, Tools::get_executable_path() + "/shaders/pre_render_sphere_v2_vertices.spv"),
-            Tools::Array<DescriptorSetLayout>({ layout })
+            Tools::Array<DescriptorSetLayout>({ layout }),
+            std::unordered_map<uint32_t, std::tuple<uint32_t, void*>>({
+                { 0, std::make_tuple(sizeof(uint32_t), (void*) &vertex_offset) }
+            })
         );
         Pipeline pipeline_faces(
             gpu.gpu,
             Shader(gpu.gpu, Tools::get_executable_path() + "/shaders/pre_render_sphere_v2_faces.spv"),
-            Tools::Array<DescriptorSetLayout>({ layout })
+            Tools::Array<DescriptorSetLayout>({ layout }),
+            std::unordered_map<uint32_t, std::tuple<uint32_t, void*>>({
+                { 0, std::make_tuple(sizeof(uint32_t), (void*) &faces_offset) },
+                { 1, std::make_tuple(sizeof(uint32_t), (void*) &vertex_offset) }
+            })
         );
 
         // Next, record the command buffer
@@ -346,15 +448,3 @@ void ECS::gpu_pre_render_sphere(Compute::BufferHandle& faces_buffer, Compute::Bu
     DRETURN;
 }
 #endif
-
-
-
-/* Returns the number of faces & vertices for this sphere, appended to the given integers. */
-void ECS::get_size_sphere(uint32_t& n_faces, uint32_t& n_vertices, Sphere* sphere) {
-    DENTER("ECS::get_size_sphere");
-
-    n_faces += sphere->n_meridians + 2 * ((sphere->n_parallels - 2) * sphere->n_meridians) + sphere->n_meridians;
-    n_vertices += 2 + (sphere->n_parallels - 2) * sphere->n_meridians;
-
-    DRETURN;
-}

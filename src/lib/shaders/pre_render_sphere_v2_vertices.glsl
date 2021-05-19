@@ -4,7 +4,7 @@
  * Created:
  *   05/05/2021, 15:29:36
  * Last edited:
- *   15/05/2021, 14:01:55
+ *   19/05/2021, 16:59:01
  * Auto updated?
  *   Yes
  *
@@ -24,6 +24,12 @@
 
 /* Define the block size(s). */
 layout (local_size_x = 32, local_size_y = 32) in;
+
+
+
+/* Define specialization constants. */
+// The offset in the target buffer
+layout (constant_id = 0) const int vertex_offset = 0;
 
 
 
@@ -94,14 +100,14 @@ void main() {
     // Note that we do not launch for the north pole
     if (x == 0 && y == 0) {
         // Generate the polar cap
-        vertices.data[0] = compute_point(fx, fy);
+        vertices.data[vertex_offset] = compute_point(fx, fy);
 
     } else if (x < max_x && y > 0 && y < max_y - 1) {
         // Circle layer
-        vertices.data[1 + (y - 1) * max_x + x] = compute_point(fx, fy);
+        vertices.data[vertex_offset + 1 + (y - 1) * max_x + x] = compute_point(fx, fy);
         
     } else if (x == 0 && y == max_y - 1) {
         // South cap
-        vertices.data[1 + (y - 1) * max_x] = compute_point(fx, fy);
+        vertices.data[vertex_offset + 1 + (y - 1) * max_x] = compute_point(fx, fy);
     }
 }

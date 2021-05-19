@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:28
  * Last edited:
- *   16/05/2021, 12:19:29
+ *   19/05/2021, 17:42:54
  * Auto updated?
  *   Yes
  *
@@ -70,6 +70,10 @@ namespace RayTracer {
         Compute::BufferHandle vk_entity_faces;
         /* GPU-side buffer that stores all the pre-rendered vertices from all entities, ready for rendering. */
         Compute::BufferHandle vk_entity_vertices;
+
+
+        /* Helper function that takes a GPU-allocated faces & vertex buffer and inserts the data from the CPU-side faces & vertex at the given offsets. */
+        void transfer_entity(const Compute::Buffer& vk_faces_buffer, uint32_t vk_faces_offset, const Compute::Buffer& vk_vertex_buffer, uint32_t vk_vertex_offset, const Tools::Array<GFace>& faces_buffer, const Tools::Array<glm::vec4>& vertex_buffer, Compute::Suite& suite);
 
     public:
         /* Constructor for the VulkanRenderer class. */

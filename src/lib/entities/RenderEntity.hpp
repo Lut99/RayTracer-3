@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:08:59
  * Last edited:
- *   06/05/2021, 18:08:48
+ *   19/05/2021, 16:46:14
  * Auto updated?
  *   Yes
  *
@@ -81,6 +81,10 @@ namespace RayTracer::ECS {
         unsigned int pre_render_mode;
         /* The pre-rendering operation that needs to happen for this entity. */
         EntityPreRenderOperation pre_render_operation;
+        /* The number of faces generated during pre-rendering for this entity. Note that we require this to be known _before_ pre-rendering starts. */
+        uint32_t pre_render_faces;
+        /* The number of vertices generated during pre-rendering for this entity. Note that we require this to be known _before_ pre-rendering starts. */
+        uint32_t pre_render_vertices;
 
     };
 }

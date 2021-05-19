@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   16/05/2021, 12:36:55
+ *   19/05/2021, 18:00:31
  * Auto updated?
  *   Yes
  *
@@ -227,7 +227,7 @@ void  Buffer::unmap(const GPU& gpu) const {
 
 
 /* Copies this buffer's content to another given buffer. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Note that the given buffer needn't come from the same memory pool. */
-void Buffer::copyto(const CommandBuffer& command_buffer, VkQueue vk_queue, const Buffer& destination, VkDeviceSize n_bytes, bool wait_queue_idle) const {
+void Buffer::copyto(const CommandBuffer& command_buffer, VkQueue vk_queue, const Buffer& destination, VkDeviceSize n_bytes, VkDeviceSize target_offset, bool wait_queue_idle) const {
     DENTER("Compute::Buffer::copyto");
 
     // If the number of bytes to transfer is the max, default to the buffer size
@@ -236,8 +236,8 @@ void Buffer::copyto(const CommandBuffer& command_buffer, VkQueue vk_queue, const
     }
 
     // First, check if the destination buffer is large enough
-    if (destination.vk_memory_size < n_bytes) {
-        DLOG(fatal, "Cannot copy " + std::to_string(n_bytes) + " bytes to buffer of only " + std::to_string(destination.vk_memory_size) + " bytes.");
+    if (destination.vk_memory_size - target_offset < n_bytes) {
+        DLOG(fatal, "Cannot copy " + std::to_string(n_bytes) + " bytes to buffer of only " + std::to_string(destination.vk_memory_size) + " bytes (with offset=" + std::to_string(target_offset) + ").");
     }
 
     // Next, make sure they have the required flags
@@ -254,7 +254,7 @@ void Buffer::copyto(const CommandBuffer& command_buffer, VkQueue vk_queue, const
     // We schedule the copy by populating a struct
     VkBufferCopy copy_region{};
     copy_region.srcOffset = 0;
-    copy_region.dstOffset = 0;
+    copy_region.dstOffset = target_offset;
     copy_region.size = n_bytes;
     vkCmdCopyBuffer(command_buffer, this->vk_buffer, destination.vk_buffer, 1, &copy_region);
 

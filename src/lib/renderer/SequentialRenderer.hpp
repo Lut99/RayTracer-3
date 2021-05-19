@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 15:25:09
  * Last edited:
- *   03/05/2021, 15:34:44
+ *   19/05/2021, 17:52:34
  * Auto updated?
  *   Yes
  *
@@ -25,6 +25,13 @@ namespace RayTracer {
     /* The SequentialRenderer class, which implements the standard Renderer as simple as possible. */
     class SequentialRenderer: public Renderer {
     private:
+        /* The pre-rendered list of (GPU-optimised) vertices, which we can send to the GPU. */
+        Tools::Array<GFace> entity_faces;
+        /* The pre-rendered list of (GPU-optimised) points referred to by the vertices, which we can send to the GPU. */
+        Tools::Array<glm::vec4> entity_vertices;
+        
+        /* Helper function that merges the given newly pre-rendered faces & vertex buffers and inserts them in the global buffers. */
+        void transfer_entity(Tools::Array<GFace>& faces_buffer, Tools::Array<glm::vec4>& vertex_buffer, const Tools::Array<GFace>& new_faces_buffer, const Tools::Array<glm::vec4>& new_vertex_buffer);
 
     public:
         /* Constructor for the SequentialRenderer class. */

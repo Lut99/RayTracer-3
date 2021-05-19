@@ -4,7 +4,7 @@
  * Created:
  *   06/05/2021, 16:52:02
  * Last edited:
- *   16/05/2021, 12:48:14
+ *   19/05/2021, 17:27:20
  * Auto updated?
  *   Yes
  *
@@ -42,10 +42,7 @@ namespace RayTracer::ECS {
     /* Creates a new Object struct based on the given properties. Note that the actual loading of the object is done during pre-rendering. */
     Object* create_object(const std::string& file_path, const glm::vec3& center, float scale, const glm::vec3& color);
     /* Pre-renders the sphere on the CPU, single-threaded. Basically just loads the file given on creation. Since object files are usually indexed, so are we. */
-    void cpu_pre_render_object(Tools::Array<GFace>& faces, Tools::Array<glm::vec4>& vertices, Object* obj);
-
-    /* Returns the number of faces & vertices for this object, appended to the given integers. */
-    void get_size_object(uint32_t& n_faces, uint32_t& n_vertices, Object* obj);
+    void cpu_pre_render_object(Tools::Array<GFace>& faces_buffer, Tools::Array<glm::vec4>& vertex_buffer, Object* obj);
 
 }
 

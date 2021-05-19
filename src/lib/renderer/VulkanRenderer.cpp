@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   16/05/2021, 12:52:34
+ *   19/05/2021, 18:05:59
  * Auto updated?
  *   Yes
  *
@@ -229,6 +229,62 @@ VulkanRenderer::~VulkanRenderer() {
 
 
 
+/* Helper function that takes a GPU-allocated faces & vertex buffer and inserts the data from the CPU-side faces & vertex at the given offsets. */
+void VulkanRenderer::transfer_entity(const Compute::Buffer& vk_faces_buffer, uint32_t vk_faces_offset, const Compute::Buffer& vk_vertex_buffer, uint32_t vk_vertex_offset, const Tools::Array<GFace>& faces_buffer, const Tools::Array<glm::vec4>& vertex_buffer, Compute::Suite& suite) {
+    DENTER("VulkanRenderer::transfer_entity");
+
+    // First, allocate a staging buffer large enough to transfer both the faces and the vertices
+    uint32_t faces_size = faces_buffer.size() * sizeof(GFace);
+    uint32_t vertex_size = vertex_buffer.size() * sizeof(glm::vec4);
+    uint32_t staging_size = std::max({ faces_size, vertex_size });
+    Buffer staging = suite.stage_memory_pool.allocate_buffer(staging_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
+
+    // Next, we copy the faces
+    {
+        // First, map the memory
+        GFace* mapped_memory;
+        staging.map(suite.gpu, (void**) &mapped_memory);
+
+        // Then, copy the CPU buffer over - all the while while we add the vertex offset to the indices
+        for (size_t i = 0; i < faces_buffer.size(); i++) {
+            mapped_memory[i] = faces_buffer[i];
+            mapped_memory[i].v1 += vk_vertex_offset;
+            mapped_memory[i].v2 += vk_vertex_offset;
+            mapped_memory[i].v3 += vk_vertex_offset;
+        }
+
+        // Unmap and then flush the staging area
+        staging.unmap(suite.gpu);
+        staging.flush(suite.gpu);
+
+        // Copy the data over, but make sure to only copy to the given offset in the target buffer
+        staging.copyto(suite.staging_cb, suite.gpu.memory_queue(), vk_faces_buffer, (VkDeviceSize) faces_size, (VkDeviceSize) vk_faces_offset);
+    }
+
+    // Then, we copy the vertices
+    {
+        // First, map the memory
+        void* mapped_memory;
+        staging.map(suite.gpu, &mapped_memory);
+
+        // Then, copy the CPU buffer over
+        memcpy(mapped_memory, vertex_buffer.rdata(), vertex_size);
+
+        // Unmap and then flush the staging area
+        staging.unmap(suite.gpu);
+        staging.flush(suite.gpu);
+
+        // Copy the data over, but make sure to only copy to the given offset in the target buffer
+        staging.copyto(suite.staging_cb, suite.gpu.memory_queue(), vk_vertex_buffer, (VkDeviceSize) vertex_size, (VkDeviceSize) vk_vertex_offset);
+    }
+
+    // Deallocate the staging buffer and we're done
+    suite.stage_memory_pool.deallocate(staging);
+    DRETURN;
+}
+
+
+        
 /* Pre-renders the given list of RenderEntities, accelerated using Vulkan compute shaders. */
 void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities) {
     DENTER("VulkanRenderer::prerender");
@@ -247,35 +303,26 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
     uint32_t n_faces = 0;
     uint32_t n_vertices = 0;
     for (size_t i = 0; i < entities.size(); i++) {
-        switch(entities[i]->type) {
-            case et_triangle:
-                // Get the size of the triangle
-                get_size_triangle(n_faces, n_vertices, (Triangle*) entities[i]);
-
-            case et_sphere:
-                // Get the size of the sphere
-                get_size_sphere(n_faces, n_vertices, (Sphere*) entities[i]);
-
-            case et_object:
-                // Get the size of the object
-                get_size_object(n_faces, n_vertices, (Object*) entities[i]);
-
-            default:
-                DLOG(fatal, "Unknown entity type '" + entity_type_names[entities[i]->type] + "' for entity at index " + std::to_string(i));
-
-        }
+        n_faces += entities[i]->pre_render_faces;
+        n_vertices += entities[i]->pre_render_vertices;
     }
+    DLOG(info, "Total: " + std::to_string(entities.size()) + " entities, with " + std::to_string(n_faces) + " faces (" + std::to_string(n_faces * sizeof(GFace)) + " bytes) and " + std::to_string(n_vertices) + " vertices (" + std::to_string(n_vertices * sizeof(glm::vec4)) + " bytes)");
 
     // With the size, initialize the two output buffers
-    this->vk_entity_faces = this->device_memory_pool->allocate_buffer_h(n_faces * sizeof(GFace), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    this->vk_entity_faces = this->device_memory_pool->allocate_buffer_h(n_faces * sizeof(GFace), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     Buffer vk_entity_faces = this->device_memory_pool->deref_buffer(this->vk_entity_faces);
-    this->vk_entity_vertices = this->device_memory_pool->allocate_buffer_h(n_vertices * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    this->vk_entity_vertices = this->device_memory_pool->allocate_buffer_h(n_vertices * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     Buffer vk_entity_vertices = this->device_memory_pool->deref_buffer(this->vk_entity_vertices);
 
     // Prepare a suite of the GPU-related structures to pass to GPU-enabled functions as necessary
     Compute::Suite suite = this->get_suite();
 
+    // Prepare two temporary Array structures to pre-render on the CPU in
+    Tools::Array<GFace> entity_faces;
+    Tools::Array<glm::vec4> entity_vertices;
+
     // Next, loop through all entities to render them
+    uint32_t faces_offset = 0, vertex_offset = 0;
     for (size_t i = 0; i < entities.size(); i++) {
         // Select the proper pre-render mode
         if (entities[i]->pre_render_mode & EntityPreRenderModeFlags::eprmf_gpu) {
@@ -284,7 +331,10 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
                 case EntityPreRenderOperation::epro_generate_sphere:
                     /* Prepare the pipeline using this shader. */
                     gpu_pre_render_sphere(
-                        faces,
+                        vk_entity_faces,
+                        faces_offset,
+                        vk_entity_vertices,
+                        vertex_offset,
                         suite,
                         (Sphere*) entities[i]
                     );
@@ -295,22 +345,32 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
 
             }
 
+            // Increment the offset, and we're done!
+            faces_offset += entities[i]->pre_render_faces;
+            vertex_offset += entities[i]->pre_render_vertices;
+
         } else if (entities[i]->pre_render_mode & EntityPreRenderModeFlags::eprmf_cpu) {
+            // Clear the buffers and set them to the correct size
+            entity_faces.clear();
+            entity_vertices.clear();
+            entity_faces.resize(entities[i]->pre_render_faces);
+            entity_vertices.resize(entities[i]->pre_render_vertices);
+
             // Determine the type of pre-rendering operation we need to do
             switch (entities[i]->pre_render_operation) {
                 case EntityPreRenderOperation::epro_generate_triangle:
                     /* Call the generate triangle CPU function. */
-                    cpu_pre_render_triangle(faces, (Triangle*) entities[i]);
+                    cpu_pre_render_triangle(entity_faces, entity_vertices, (Triangle*) entities[i]);
                     break;
 
                 case EntityPreRenderOperation::epro_generate_sphere:
                     /* Call the generate sphere CPU function. */
-                    cpu_pre_render_sphere(faces, (Sphere*) entities[i]);
+                    cpu_pre_render_sphere(entity_faces, entity_vertices, (Sphere*) entities[i]);
                     break;
                 
                 case EntityPreRenderOperation::epro_load_object_file:
                     /* Call the load object file CPU function. */
-                    cpu_pre_render_object(gfaces, gvertices, (Object*) entities[i]);
+                    cpu_pre_render_object(entity_faces, entity_vertices, (Object*) entities[i]);
                     break;
 
                 default:
@@ -318,18 +378,16 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
 
             }
 
+            // Once done, use the internal function to copy them to the CPU
+            this->transfer_entity(vk_entity_faces, faces_offset, vk_entity_vertices, vertex_offset, entity_faces, entity_vertices, suite);
+            faces_offset += entities[i]->pre_render_faces;
+            vertex_offset += entities[i]->pre_render_vertices;
+
         } else {
             DLOG(fatal, "Entity " + std::to_string(i) + " of type " + entity_type_names[entities[i]->type] + " with the Vulkan compute shader back-end.");
         }
 
-        // Insert the generated list into the global list. However, we do different things based on different operations
-        if (entities[i]->pre_render_operation == EntityPreRenderOperation::epro_load_object_file) {
-            // Just append the vertices and indices to the list
-            this->append_faces(this->entity_faces, this->entity_vertices, gfaces, gvertices);
-        } else {
-            // Strip all non-unique vertices and generate new indices
-            this->insert_faces(this->entity_faces, this->entity_vertices, faces);
-        }
+        // Inserting is now handled by either the function itself or the CPU-specific function, so we're done!
     }
 
     // We're done! We pre-rendered all objects!
@@ -349,32 +407,8 @@ void VulkanRenderer::render(Camera& cam) const {
     DLOG(auxillary, "Camera vertical          : (" + std::to_string(cam.vertical.x) + "," + std::to_string(cam.vertical.y) + "," + std::to_string(cam.vertical.z) + ")");
     DLOG(auxillary, "Camera lower_left_corner : (" + std::to_string(cam.lower_left_corner.x) + "," + std::to_string(cam.lower_left_corner.y) + "," + std::to_string(cam.lower_left_corner.z) + ")");
     DDEDENT;
-
-    /* Step 1: Buffer initialization. */
-    DLOG(info, "Transferring vertices & points to GPU...");
     
-    // We begin by allocating the buffers required for the main data
-    size_t vertices_size = this->entity_faces.size() * sizeof(GFace);
-    size_t points_size = this->entity_vertices.size() * sizeof(glm::vec4);
-    Buffer vertices = this->device_memory_pool->allocate_buffer(vertices_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-    Buffer points = this->device_memory_pool->allocate_buffer(points_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-
-    // Next, get two staging buffers so we can (hopefully) do things concurrently
-    Buffer vertices_staging = this->stage_memory_pool->allocate_buffer(vertices_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-    Buffer points_staging = this->stage_memory_pool->allocate_buffer(points_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-
-    // Next, fill the vertex & point buffers with the allocated staging buffers
-    CommandBuffer staging_cb = (*this->memory_command_pool)[this->staging_cb_h];
-    vertices.set(*this->gpu, vertices_staging, staging_cb, this->gpu->memory_queue(), (void*) this->entity_faces.rdata(), vertices_size);
-    points.set(*this->gpu, points_staging, staging_cb, this->gpu->memory_queue(), (void*) this->entity_vertices.rdata(), points_size);
-
-    // Once that's done, deallocate the staging buffers again
-    this->stage_memory_pool->deallocate(vertices_staging);
-    this->stage_memory_pool->deallocate(points_staging);
-
-
-
-    /* Step 2: Camera buffer initialization. */
+    /* Step 1: Camera buffer initialization. */
     DLOG(info, "Transferring camera to GPU...");
     
     // First, allocate buffers for the frame and the camera data
@@ -402,6 +436,7 @@ void VulkanRenderer::render(Camera& cam) const {
     camera_staging.unmap(*this->gpu);
 
     // Next, we schedule the copies of the staging buffer to the real buffer
+    CommandBuffer staging_cb = (*this->compute_command_pool)[this->staging_cb_h];
     camera_staging.copyto(staging_cb, this->gpu->memory_queue(), camera);
 
     // Once that's done, deallocate the staging buffer for the camera.
@@ -411,12 +446,17 @@ void VulkanRenderer::render(Camera& cam) const {
 
     /* Step 3: Descriptor set initialization. */
     DLOG(info, "Creating descriptor set...");
+
+    // Fetch the internal handles as buffers
+    Buffer vk_entity_faces = this->device_memory_pool->deref_buffer(this->vk_entity_faces);
+    Buffer vk_entity_vertices = this->device_memory_pool->deref_buffer(this->vk_entity_vertices);
+
     // Allocate a DescriptorSet & set all bindings
     DescriptorSet descriptor_set = this->descriptor_pool->allocate(*this->raytrace_dsl);
     descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0, Tools::Array<Buffer>({ frame }));
     descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, Tools::Array<Buffer>({ camera }));
-    descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, Tools::Array<Buffer>({ vertices }));
-    descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, Tools::Array<Buffer>({ points }));
+    descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, Tools::Array<Buffer>({ vk_entity_faces }));
+    descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, Tools::Array<Buffer>({ vk_entity_vertices }));
 
 
 
@@ -425,7 +465,6 @@ void VulkanRenderer::render(Camera& cam) const {
     
     // Initialize a new pipeline using the new layout
     DINDENT;
-    DLOG(info, "About to render " + std::to_string(this->entity_faces.size()) + " faces");
     Pipeline pipeline(
         *this->gpu,
         Shader(*this->gpu, Tools::get_executable_path() + "/shaders/raytracer_v3.spv"),
@@ -497,8 +536,6 @@ void VulkanRenderer::render(Camera& cam) const {
     // Cleanup the GPU buffers
     this->device_memory_pool->deallocate(frame);
     this->device_memory_pool->deallocate(camera);
-    this->device_memory_pool->deallocate(points);
-    this->device_memory_pool->deallocate(vertices);
 
     // Done!
     DRETURN;

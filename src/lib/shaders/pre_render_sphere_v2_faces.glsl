@@ -4,7 +4,7 @@
  * Created:
  *   05/05/2021, 15:29:36
  * Last edited:
- *   15/05/2021, 14:07:43
+ *   19/05/2021, 17:22:03
  * Auto updated?
  *   Yes
  *
@@ -27,19 +27,27 @@ layout (local_size_x = 32, local_size_y = 32) in;
 
 
 
+/* Define specialization constants. */
+// The offset in the target faces buffer
+layout (constant_id = 0) const int faces_offset = 0;
+// The offset in the target vertex buffer
+layout (constant_id = 1) const int vertex_offset = 0;
+
+
+
 /* Structs */
 // The GFace struct, which is a single vertex condensed to indices. */
 struct GFace {
-    /* The first point of the vertex. */
-    uint p1;
-    /* The second point of the vertex. */
-    uint p2;
-    /* The third point of the vertex. */
-    uint p3;
+    /* The first vertex of the face. */
+    uint v1;
+    /* The second vertex of the face. */
+    uint v2;
+    /* The third vertex of the face. */
+    uint v3;
 
-    /* The normal of the vertex. */
+    /* The normal of the face. */
     vec3 normal;
-    /* The color of the vertex. */
+    /* The color of the face. */
     vec3 color;  
 };
 
@@ -90,11 +98,11 @@ void main() {
         // Layer below the north cap
 
         // Get the index of the polar point
-        uint p1 = 0;
+        uint p1 = vertex_offset;
         // Get the index of the previous point in this circle
-        uint p2 = 1 + (y - 1) * max_x + x_m1;
+        uint p2 = vertex_offset + 1 + (y - 1) * max_x + x_m1;
         // Get the index of the current point in this circle
-        uint p3 = 1 + (y - 1) * max_x + x;
+        uint p3 = vertex_offset + 1 + (y - 1) * max_x + x;
 
         // Compute the normal for these fellas
         vec3 n = normalize(cross(vertices.data[p3] - vertices.data[p1], vertices.data[p2] - vertices.data[p1]));
@@ -102,26 +110,26 @@ void main() {
         vec3 c = sphere.color * abs(dot(n, vec3(0.0, 0.0, -1.0)));
 
         // Store as vertex
-        faces.data[x].p1 = p1;
-        faces.data[x].p2 = p2;
-        faces.data[x].p3 = p3;
-        faces.data[x].normal = n;
-        faces.data[x].color = c;
+        faces.data[faces_offset + x].v1 = p1;
+        faces.data[faces_offset + x].v2 = p2;
+        faces.data[faces_offset + x].v3 = p3;
+        faces.data[faces_offset + x].normal = n;
+        faces.data[faces_offset + x].color = c;
 
     } else if (x < max_x && y > 1 && y < max_y) {
         // Layer below another layer
 
         // First, pre-compute the base index of this layer's vertices in the resulting buffer
-        uint f_index = max_x + 2 * (y - 2) * max_x;
+        uint f_index = faces_offset + max_x + 2 * (y - 2) * max_x;
 
         // Get the index of the previous point in previous circle
-        uint p2 = 1 + (y_m1 - 1) * max_x + x_m1;
+        uint p1 = vertex_offset + 1 + (y_m1 - 1) * max_x + x_m1;
         // Get the index of the current point in previous circle
-        uint p3 = 1 + (y_m1 - 1) * max_x + x;
+        uint p2 = vertex_offset + 1 + (y_m1 - 1) * max_x + x;
         // Get the index of the previous point in this circle
-        uint p2 = 1 + (y - 1) * max_x + x_m1;
+        uint p3 = vertex_offset + 1 + (y - 1) * max_x + x_m1;
         // Get the index of the current point in this circle
-        uint p3 = 1 + (y - 1) * max_x + x;
+        uint p4 = vertex_offset + 1 + (y - 1) * max_x + x;
         
         // // Compute the previous point of the previous layer
         // vec3 p1 = compute_point(fx_m1, fy_m1);
@@ -140,15 +148,15 @@ void main() {
         vec3 c2 = sphere.color * abs(dot(n2, vec3(0.0, 0.0, -1.0)));
 
         // Store them both
-        faces.data[f_index + 2 * x].p1 = p1;
-        faces.data[f_index + 2 * x].p2 = p3;
-        faces.data[f_index + 2 * x].p3 = p4;
+        faces.data[f_index + 2 * x].v1 = p1;
+        faces.data[f_index + 2 * x].v2 = p3;
+        faces.data[f_index + 2 * x].v3 = p4;
         faces.data[f_index + 2 * x].normal = n1;
         faces.data[f_index + 2 * x].color = c1;
 
-        faces.data[f_index + 2 * x + 1].p1 = p1;
-        faces.data[f_index + 2 * x + 1].p2 = p2;
-        faces.data[f_index + 2 * x + 1].p3 = p4;
+        faces.data[f_index + 2 * x + 1].v1 = p1;
+        faces.data[f_index + 2 * x + 1].v2 = p2;
+        faces.data[f_index + 2 * x + 1].v3 = p4;
         faces.data[f_index + 2 * x + 1].normal = n2;
         faces.data[f_index + 2 * x + 1].color = c2;
         
@@ -156,14 +164,14 @@ void main() {
         // South cap
 
         // Compute some indices first
-        uint f_index = max_x + 2 * (y - 2) * max_x;
+        uint f_index = faces_offset + max_x + 2 * (y - 2) * max_x;
 
         // Get the index of the polar point
-        uint p1 = 1 + (y - 1) * max_x;
+        uint p1 = vertex_offset + 1 + (y - 1) * max_x;
         // Get the index of the previous point in (previous) circle
-        uint p2 = 1 + (y_m1 - 1) * max_x + x_m1;
+        uint p2 = vertex_offset + 1 + (y_m1 - 1) * max_x + x_m1;
         // Get the index of the current point in (previous) circle
-        uint p3 = 1 + (y_m1 - 1) * max_x + x;
+        uint p3 = vertex_offset + 1 + (y_m1 - 1) * max_x + x;
 
         // // Compute the polar point
         // vec3 p1 = sphere.center - vec3(0.0, sphere.radius, 0.0);
@@ -178,9 +186,9 @@ void main() {
         vec3 c = sphere.color * abs(dot(n, vec3(0.0, 0.0, -1.0)));
 
         // Store as vertex
-        faces.data[f_index + x].p1 = p1;
-        faces.data[f_index + x].p2 = p2;
-        faces.data[f_index + x].p3 = p3;
+        faces.data[f_index + x].v1 = p1;
+        faces.data[f_index + x].v2 = p2;
+        faces.data[f_index + x].v3 = p3;
         faces.data[f_index + x].normal = n;
         faces.data[f_index + x].color = c;
     }

@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 13:35:10
  * Last edited:
- *   16/05/2021, 12:45:08
+ *   19/05/2021, 17:28:24
  * Auto updated?
  *   Yes
  *
@@ -35,6 +35,9 @@ Triangle* ECS::create_triangle(const glm::vec3& p1, const glm::vec3& p2, const g
     result->type = EntityType::et_triangle;
     result->pre_render_mode = EntityPreRenderModeFlags::eprmf_cpu;
     result->pre_render_operation = EntityPreRenderOperation::epro_generate_triangle;
+    // Compute how many faces & vertices to generate
+    result->pre_render_faces = 1;
+    result->pre_render_vertices = 3;
 
     // Set all points
     result->points[0] = p1;
@@ -52,30 +55,22 @@ Triangle* ECS::create_triangle(const glm::vec3& p1, const glm::vec3& p2, const g
 
 
 /* Pre-renders the sphere on the CPU, single-threaded. */
-void ECS::cpu_pre_render_triangle(Tools::Array<Face>& faces, Triangle* triangle) {
+void ECS::cpu_pre_render_triangle(Tools::Array<GFace>& faces_buffer, Tools::Array<glm::vec4>& vertex_buffer, Triangle* triangle) {
     DENTER("ECS::cpu_pre_render_triangle");
     DLOG(info, "Pre-rendering triangle...");
 
+    // Copy the points
+    vertex_buffer[0] = glm::vec4(triangle->points[0], 0.0);
+    vertex_buffer[1] = glm::vec4(triangle->points[1], 0.0);
+    vertex_buffer[2] = glm::vec4(triangle->points[2], 0.0);
+
     // We set one vertex
-    faces = {{
-        triangle->points[0], triangle->points[1], triangle->points[2],
+    faces_buffer = {{
+        0, 1, 2,
         triangle->normal,
         triangle->color
     }};
 
     // Done!
-    DRETURN;
-}
-
-
-
-/* Returns the number of faces & vertices for this triangle appended to the given integers. */
-void ECS::get_size_triangle(uint32_t& n_faces, uint32_t& n_vertices, Triangle* triangle) {
-    DENTER("ECS::get_size_triangle");
-
-    n_faces += 1;
-    n_vertices += 3;
-    (void) triangle;
-
     DRETURN;
 }

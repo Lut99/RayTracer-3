@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:35
  * Last edited:
- *   16/05/2021, 12:37:48
+ *   19/05/2021, 17:38:51
  * Auto updated?
  *   Yes
  *
@@ -81,9 +81,9 @@ namespace RayTracer::Compute {
         void unmap(const GPU& gpu) const;
 
         /* Copies this buffer's content to another given buffer on the given memory-enabled GPU queue. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Optionally waits until the queue is idle before returning. Note that the given buffer needn't come from the same memory pool. */
-        inline void copyto(const CommandBuffer& command_buffer, VkQueue vk_queue, const Buffer& destination, bool wait_queue_idle = true) const { return copyto(command_buffer, vk_queue, destination, std::numeric_limits<VkDeviceSize>::max(), wait_queue_idle); }
+        inline void copyto(const CommandBuffer& command_buffer, VkQueue vk_queue, const Buffer& destination, bool wait_queue_idle = true) const { return copyto(command_buffer, vk_queue, destination, std::numeric_limits<VkDeviceSize>::max(), 0, wait_queue_idle); }
         /* Copies this buffer's content to another given buffer on the given memory-enabled GPU queue. The given command pool (which must be a pool for the memory-enabled queue) is used to schedule the copy. Optionally waits until the queue is idle before returning. Note that the given buffer needn't come from the same memory pool. */
-        void copyto(const CommandBuffer& command_buffer, VkQueue vk_queue, const Buffer& destination, VkDeviceSize n_bytes, bool wait_queue_idle = true) const;
+        void copyto(const CommandBuffer& command_buffer, VkQueue vk_queue, const Buffer& destination, VkDeviceSize n_bytes, VkDeviceSize target_offset = 0, bool wait_queue_idle = true) const;
 
         /* Returns the size of the buffer, in bytes. */
         inline VkDeviceSize size() const { return this->vk_memory_size; }

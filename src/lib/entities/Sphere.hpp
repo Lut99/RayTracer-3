@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 11:59:00
  * Last edited:
- *   16/05/2021, 12:45:23
+ *   19/05/2021, 17:05:34
  * Auto updated?
  *   Yes
  *
@@ -49,15 +49,12 @@ namespace RayTracer::ECS {
     /* Creates a new Sphere struct based on the given properties. */
     Sphere* create_sphere(const glm::vec3& center, float radius, uint32_t n_meridians, uint32_t n_parallels, const glm::vec3& color);
 
-    /* Pre-renders the sphere on the CPU, single-threaded. */
-    void cpu_pre_render_sphere(Tools::Array<Face>& faces, Sphere* sphere);
+    /* Pre-renders the sphere on the CPU, single-threaded, and returns a list of CPU-side buffers with the GFaces and the vertices. Assumes the given buffers contains irrelevant data, and already have the correct size. */
+    void cpu_pre_render_sphere(Tools::Array<GFace>& faces_buffer, Tools::Array<glm::vec4>& vertex_buffer, Sphere* sphere);
     #ifdef ENABLE_VULKAN
-    /* Pre-renders the sphere on the GPU using Vulkan compute shaders. */
-    void gpu_pre_render_sphere(Compute::BufferHandle& faces_buffer, Compute::BufferHandle& vertex_buffer, Compute::Suite& gpu, Sphere* sphere);
+    /* Pre-renders the sphere on the GPU using Vulkan compute shaders. Uses the given GPU-allocated buffers as target buffers, so we won't have to get the stuff back to the CPU. The given offsets specify from where the pre-rendering is safe to put its results, up until that offset plus the specified size in the Sphere. */
+    void gpu_pre_render_sphere(const Compute::Buffer& faces_buffer, uint32_t faces_offset, const Compute::Buffer& vertex_buffer, uint32_t vertex_offset, Compute::Suite& gpu, Sphere* sphere);
     #endif
-
-    /* Returns the number of faces & vertices for this sphere, appended to the given integers. */
-    void get_size_sphere(uint32_t& n_faces, uint32_t& n_vertices, Sphere* sphere);
 
 }
 

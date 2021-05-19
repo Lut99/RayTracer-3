@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:21:29
  * Last edited:
- *   11/05/2021, 21:17:53
+ *   19/05/2021, 17:51:57
  * Auto updated?
  *   Yes
  *
@@ -33,22 +33,9 @@ namespace RayTracer {
     /* The Renderer baseclass, which can be used to render a list of RenderEntities to a frame. Derived classes can determine if the renderer uses Vulkan, CUDA, the CPU, w/e. */
     class Renderer {
     protected:
-        /* The pre-rendered list of (GPU-optimised) vertices, which we can send to the GPU. */
-        Tools::Array<GFace> entity_faces;
-        /* The pre-rendered list of (GPU-optimised) points referred to by the vertices, which we can send to the GPU. */
-        Tools::Array<glm::vec4> entity_vertices;
-        
         /* Protected constructor for the Renderer Baseclass, which is used by derived classes to initialize the base elements. */
         Renderer();
-
-        /* Given a list of faces pre-rendered from an entity, injects them into the list of vertices and indexed list of Faces. */
-        static void insert_faces(Tools::Array<GFace>& faces, Tools::Array<glm::vec4>& points, const Array<Face>& new_faces);
-        /* Appends a given list of indexed faces to the global list of indexed Faces. */
-        static void append_faces(Tools::Array<GFace>& faces, Tools::Array<glm::vec4>& vertices, const Tools::Array<GFace>& new_faces, const Tools::Array<glm::vec4>& new_vertices);
-
-        /* Static function that pre-renders the given entity in CPU pre-render mode. */
-        static void prerender_cpu();
-
+        
     public:
         /* Copy constructor for the Renderer baseclass. */
         Renderer(const Renderer& other);

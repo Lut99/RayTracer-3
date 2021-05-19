@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 15:25:06
  * Last edited:
- *   06/05/2021, 18:11:27
+ *   19/05/2021, 17:53:43
  * Auto updated?
  *   Yes
  *
@@ -109,6 +109,32 @@ SequentialRenderer::SequentialRenderer() :
 
 
 
+/* Helper function that merges the given newly pre-rendered faces & vertex buffers and inserts them in the global buffers. */
+void SequentialRenderer::transfer_entity(Tools::Array<GFace>& faces_buffer, Tools::Array<glm::vec4>& vertex_buffer, const Tools::Array<GFace>& new_faces_buffer, const Tools::Array<glm::vec4>& new_vertex_buffer) {
+    DENTER("SequentialRenderer::transfer_entity");
+
+    // Loop to add the faces, with new offsets
+    uint32_t offset = vertex_buffer.size();
+    faces_buffer.reserve(faces_buffer.size() + new_faces_buffer.size());
+    for (size_t i = 0; i < new_faces_buffer.size(); i++) {
+        // Push to the back of the global buffer
+        faces_buffer.push_back(new_faces_buffer[i]);
+
+        // Offset the indices in the faces buffer
+        faces_buffer[faces_buffer.size() - 1].v1 += offset;
+        faces_buffer[faces_buffer.size() - 1].v2 += offset;
+        faces_buffer[faces_buffer.size() - 1].v3 += offset;
+    }
+
+    // We can append the vertex buffer immediately
+    vertex_buffer += new_vertex_buffer;
+
+    // Done!
+    DRETURN;
+}
+
+
+
 /* Pre-renders the given list of RenderEntities, not accelerated in any way lmao. */
 void SequentialRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities) {
     DENTER("SequentialRenderer::prerender");
@@ -120,34 +146,34 @@ void SequentialRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entit
     this->entity_vertices.clear();
 
     // Prepare the buffers for the per-entity vertices
-    Tools::Array<Face> faces;
-    Tools::Array<GFace> gfaces;
-    Tools::Array<glm::vec4> gvertices;
+    Tools::Array<GFace> entity_faces;
+    Tools::Array<glm::vec4> entity_vertices;
 
     // Next, loop through all entities to render them
     for (size_t i = 0; i < entities.size(); i++) {
-        // Clean the temporary buffers
-        faces.clear();
-        gfaces.clear();
-        gvertices.clear();
-
         // Select the proper pre-render mode (only CPU is supported)
         if (entities[i]->pre_render_mode & EntityPreRenderModeFlags::eprmf_cpu) {
+            // Clear the buffers and set them to the correct size
+            entity_faces.clear();
+            entity_vertices.clear();
+            entity_faces.resize(entities[i]->pre_render_faces);
+            entity_vertices.resize(entities[i]->pre_render_vertices);
+            
             // Determine the type of pre-rendering operation we need to do
             switch (entities[i]->pre_render_operation) {
                 case EntityPreRenderOperation::epro_generate_triangle:
                     /* Call the generate triangle CPU function. */
-                    cpu_pre_render_triangle(faces, (Triangle*) entities[i]);
+                    cpu_pre_render_triangle(entity_faces, entity_vertices, (Triangle*) entities[i]);
                     break;
 
                 case EntityPreRenderOperation::epro_generate_sphere:
                     /* Call the generate sphere CPU function. */
-                    cpu_pre_render_sphere(faces, (Sphere*) entities[i]);
+                    cpu_pre_render_sphere(entity_faces, entity_vertices, (Sphere*) entities[i]);
                     break;
                 
                 case EntityPreRenderOperation::epro_load_object_file:
                     /* Call the load object file CPU function. */
-                    cpu_pre_render_object(gfaces, gvertices, (Object*) entities[i]);
+                    cpu_pre_render_object(entity_faces, entity_vertices, (Object*) entities[i]);
                     break;
 
                 default:
@@ -155,18 +181,14 @@ void SequentialRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entit
 
             }
 
+            // Once done, merge them in the general lists
+            this->transfer_entity(this->entity_faces, this->entity_vertices, entity_faces, entity_vertices);            
+
         } else {
             DLOG(fatal, "Entity " + std::to_string(i) + " of type " + entity_type_names[entities[i]->type] + " with the sequential back-end.");
         }
 
-        // Insert the generated list into the global list. However, we do different things based on different operations
-        if (entities[i]->pre_render_operation == EntityPreRenderOperation::epro_load_object_file) {
-            // Just append the vertices and indices to the list
-            this->append_faces(this->entity_faces, this->entity_vertices, gfaces, gvertices);
-        } else {
-            // Strip all non-unique vertices and generate new indices
-            this->insert_faces(this->entity_faces, this->entity_vertices, faces);
-        }
+        // No need to insert again, as transfer_entity does this for us now
     }
 
     // We're done! We pre-rendered all objects!
