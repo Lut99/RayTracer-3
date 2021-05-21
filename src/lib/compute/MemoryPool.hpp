@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:35
  * Last edited:
- *   21/05/2021, 14:24:20
+ *   21/05/2021, 18:27:20
  * Auto updated?
  *   Yes
  *
@@ -164,6 +164,8 @@ namespace RayTracer::Compute {
 
         /* Returns the extent of the image. */
         inline VkExtent2D extent() const { return this->vk_extent; }
+        /* Returns the format of the image. */
+        inline VkFormat format() const { return this->vk_format; }
         /* Returns the size of the image, in bytes. */
         inline VkDeviceSize size() const { return this->vk_memory_size; }
         /* Returns the memory offset of the buffer, in bytes. */

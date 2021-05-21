@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   21/05/2021, 15:29:59
+ *   21/05/2021, 16:19:19
  * Auto updated?
  *   Yes
  *
@@ -36,25 +36,6 @@ using namespace RayTracer;
 using namespace RayTracer::Compute;
 using namespace RayTracer::ECS;
 using namespace CppDebugger::SeverityValues;
-
-
-/***** STRUCTS *****/
-/* Struct used to carry sum constants to the gpu. */
-struct ConstantData {
-    alignas(4) uint32_t i;
-    alignas(4) float duplicate_constant;  
-};
-
-/* Struct used to carry camera data to the GPU. */
-struct GCameraData {
-    alignas(16) glm::vec3 origin;
-    alignas(16) glm::vec3 horizontal;
-    alignas(16) glm::vec3 vertical;
-    alignas(16) glm::vec3 lower_left_corner;
-};
-
-
-
 
 
 /***** VULKANRENDERER CLASS *****/
@@ -94,13 +75,6 @@ VulkanRenderer::VulkanRenderer() :
     this->compute_command_pool = new CommandPool(*this->gpu, this->gpu->queue_info().compute());
     this->memory_command_pool = new CommandPool(*this->gpu, this->gpu->queue_info().memory(), VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
-    // Initialize the descriptor set layout for the insert call
-    this->insert_dsl = new DescriptorSetLayout(*this->gpu);
-    this->insert_dsl->add_binding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
-    this->insert_dsl->add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
-    this->insert_dsl->add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
-    this->insert_dsl->finalize();
-
     // Initialize the descriptor set layout for the raytrace call
     this->raytrace_dsl = new DescriptorSetLayout(*this->gpu);
     this->raytrace_dsl->add_binding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT);
@@ -117,6 +91,15 @@ VulkanRenderer::VulkanRenderer() :
 
     DDEDENT;
     DLEAVE;
+}
+
+/* Constructor that accepts a boolean. Regardless of its value, does not initialize any vulkan objects. */
+VulkanRenderer::VulkanRenderer(bool) :
+    Renderer(),
+    vk_entity_faces(MemoryPool::NullHandle),
+    vk_entity_vertices(MemoryPool::NullHandle)
+{
+    // Do nothing
 }
 
 /* Copy constructor for the VulkanRenderer class. */
@@ -141,7 +124,6 @@ VulkanRenderer::VulkanRenderer(const VulkanRenderer& other) :
     this->memory_command_pool = new CommandPool(*other.memory_command_pool);
 
     // Copy the descriptor set layouts
-    this->insert_dsl = new DescriptorSetLayout(*other.insert_dsl);
     this->raytrace_dsl = new DescriptorSetLayout(*other.raytrace_dsl);
 
     // And copy command buffers
@@ -169,7 +151,6 @@ VulkanRenderer::VulkanRenderer(VulkanRenderer&& other) :
     descriptor_pool(other.descriptor_pool),
     compute_command_pool(other.compute_command_pool),
     memory_command_pool(other.memory_command_pool),
-    insert_dsl(other.insert_dsl),
     raytrace_dsl(other.raytrace_dsl),
     staging_cb_h(other.staging_cb_h),
     vk_entity_faces(other.vk_entity_faces),
@@ -183,7 +164,6 @@ VulkanRenderer::VulkanRenderer(VulkanRenderer&& other) :
     other.descriptor_pool = nullptr;
     other.compute_command_pool = nullptr;
     other.memory_command_pool = nullptr;
-    other.insert_dsl = nullptr;
     other.raytrace_dsl = nullptr;
 }
 
@@ -195,9 +175,6 @@ VulkanRenderer::~VulkanRenderer() {
 
     if (this->raytrace_dsl != nullptr) {
         delete this->raytrace_dsl;
-    }
-    if (this->insert_dsl != nullptr) {
-        delete this->insert_dsl;
     }
 
     if (this->memory_command_pool != nullptr) {
@@ -306,7 +283,7 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
         n_faces += entities[i]->pre_render_faces;
         n_vertices += entities[i]->pre_render_vertices;
     }
-    DLOG(info, "Total: " + std::to_string(entities.size()) + " entities, with " + std::to_string(n_faces) + " faces (" + std::to_string(n_faces * sizeof(GFace)) + " bytes) and " + std::to_string(n_vertices) + " vertices (" + std::to_string(n_vertices * sizeof(glm::vec4)) + " bytes)");
+    DLOG(info, "Total: " + std::to_string(entities.size()) + " entities, with " + std::to_string(n_faces) + " faces (" + Tools::bytes_to_string(n_faces * sizeof(GFace)) + " bytes) and " + std::to_string(n_vertices) + " vertices (" + Tools::bytes_to_string(n_vertices * sizeof(glm::vec4)) + " bytes)");
 
     // With the size, initialize the two output buffers
     this->vk_entity_faces = this->device_memory_pool->allocate_buffer_h(n_faces * sizeof(GFace), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
@@ -585,7 +562,6 @@ void RayTracer::swap(VulkanRenderer& r1, VulkanRenderer& r2) {
     swap(r1.compute_command_pool, r2.compute_command_pool);
     swap(r1.memory_command_pool, r2.memory_command_pool);
 
-    swap(r1.insert_dsl, r2.insert_dsl);
     swap(r1.raytrace_dsl, r2.raytrace_dsl);
     swap(r1.staging_cb_h, r2.staging_cb_h);
 
@@ -600,6 +576,7 @@ void RayTracer::swap(VulkanRenderer& r1, VulkanRenderer& r2) {
 
 
 /***** FACTORY METHOD *****/
+#ifndef ENABLE_ONLINE
 Renderer* RayTracer::initialize_renderer() {
     DENTER("initialize_renderer");
 
@@ -609,3 +586,4 @@ Renderer* RayTracer::initialize_renderer() {
     // Done, return
     DRETURN (Renderer*) result;
 }
+#endif

@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:40:10
  * Last edited:
- *   11/05/2021, 21:04:15
+ *   21/05/2021, 17:59:59
  * Auto updated?
  *   Yes
  *
@@ -62,8 +62,20 @@ namespace RayTracer::Compute {
         /* Destructor for the Swapchain class. */
         ~Swapchain();
 
+        /* Returns a the internal image at the given location. */
+        inline VkImage operator[](uint32_t index) { return this->vk_swapchain_images[index]; }
+
         /* Returns the number of images in the swapchain. */
         inline uint32_t size() const { return this->vk_actual_image_count; }
+        /* Returns the actual extent of the swapchain. */
+        inline VkExtent2D extent() const { return this->vk_surface_extent; }
+        /* Returns the format of the swapchain images. */
+        inline VkFormat format() const { return this->vk_surface_format.format; }
+
+        /* Expliticly returns the internal VkSwapchainKHR object. */
+        inline const VkSwapchainKHR& swapchain() const { return this->vk_swapchain; }
+        /* Implicitly returns the internal VkSwapchainKHR object. */
+        inline operator VkSwapchainKHR() const { return this->vk_swapchain; }
 
         /* Copy assignment operator for the Swapchain class. */
         inline Swapchain& operator=(const Swapchain& other) { return *this = Swapchain(other); }

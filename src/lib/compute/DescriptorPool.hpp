@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:39:16
  * Last edited:
- *   05/05/2021, 17:56:47
+ *   21/05/2021, 18:07:47
  * Auto updated?
  *   Yes
  *
@@ -42,6 +42,8 @@ namespace RayTracer::Compute {
     public:
         /* Binds this descriptor set with the contents of a given buffer to the given bind index. */
         void set(const GPU& gpu, VkDescriptorType descriptor_type, uint32_t bind_index, const Tools::Array<Buffer>& buffers) const;
+        /* Binds this descriptor set with the contents of a given image view to the given bind index. Must be enough views to actually populate all bindings of the given type. */
+        void set(const GPU& gpu, VkDescriptorType descriptor_type, uint32_t bind_index, const Tools::Array<VkImageView>& image_views) const;
         /* Binds the descriptor to the given (compute) command buffer. We assume that the recording already started. */
         void bind(const CommandBuffer& buffer, VkPipelineLayout pipeline_layout) const;
 

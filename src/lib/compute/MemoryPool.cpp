@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   21/05/2021, 15:25:05
+ *   21/05/2021, 21:11:21
  * Auto updated?
  *   Yes
  *
@@ -68,6 +68,9 @@ void populate_image_info(VkImageCreateInfo& image_info, const VkExtent3D& image_
     image_info.mipLevels = 1;
     image_info.samples = VK_SAMPLE_COUNT_1_BIT;
     image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+
+    // Since the sharing mode will be exlusive by default, let's for now hardcode this to not have a queue family
+    image_info.queueFamilyIndexCount = 0;
 
     // Done
     DRETURN;
@@ -455,14 +458,18 @@ MemoryHandle MemoryPool::allocate_memory(MemoryBlockType type, VkDeviceSize n_by
     VkDeviceSize total_free = 0;
     bool found = false;
     for (size_t i = 0; i < this->vk_free_blocks.size(); i++) {
-        total_free += this->vk_free_blocks[i].length;
-        if (this->vk_free_blocks[i].length >= mem_requirements.size) {
+        // Compute how many bytes of alignment we need to take into account when looking at where this block starts
+        VkDeviceSize align_bytes = mem_requirements.alignment - this->vk_free_blocks[i].start % mem_requirements.alignment;
+        if (align_bytes == mem_requirements.alignment) { align_bytes = 0; }
+
+        // Check if this block (aligned) is large enough
+        if (this->vk_free_blocks[i].length >= align_bytes + mem_requirements.size) {
             // This block has enough memory; mark its starting position as the used one
-            offset = this->vk_free_blocks[i].start;
+            offset = align_bytes + this->vk_free_blocks[i].start;
 
             // Shrink the block to mark this spot as used
-            this->vk_free_blocks[i].start += mem_requirements.size;
-            this->vk_free_blocks[i].length -= mem_requirements.size;
+            this->vk_free_blocks[i].start += align_bytes + mem_requirements.size;
+            this->vk_free_blocks[i].length -= align_bytes + mem_requirements.size;
 
             // If the resulting space is no bytes, then remove the free block
             if (this->vk_free_blocks[i].length == 0) {
@@ -473,6 +480,9 @@ MemoryHandle MemoryPool::allocate_memory(MemoryBlockType type, VkDeviceSize n_by
             found = true;
             break;
         }
+
+        // Keep track of how many free bytes there are in total
+        total_free += this->vk_free_blocks[i].length;
     }
     if (!found) {
         // No memory was available; is this due to memory or to bad fragmentation?

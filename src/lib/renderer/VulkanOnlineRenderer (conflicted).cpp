@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:30:34
  * Last edited:
- *   21/05/2021, 21:19:23
+ *   21/05/2021, 21:18:27
  * Auto updated?
  *   Yes
  *
@@ -184,7 +184,7 @@ VulkanOnlineRenderer::VulkanOnlineRenderer() :
         *this->gpu,
         Tools::Array<std::tuple<VkDescriptorType, uint32_t>>({
             std::make_tuple(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
-            std::make_tuple(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3)
+            // std::make_tuple(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2)
             // std::make_tuple(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2),
             // std::make_tuple(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1)
         }),

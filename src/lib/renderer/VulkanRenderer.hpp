@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:28
  * Last edited:
- *   21/05/2021, 14:28:41
+ *   21/05/2021, 16:19:25
  * Auto updated?
  *   Yes
  *
@@ -28,6 +28,16 @@
 #include "Renderer.hpp"
 
 namespace RayTracer {
+    /* Struct used to carry camera data to the GPU. */
+    struct GCameraData {
+        alignas(16) glm::vec3 origin;
+        alignas(16) glm::vec3 horizontal;
+        alignas(16) glm::vec3 vertical;
+        alignas(16) glm::vec3 lower_left_corner;
+    };
+
+
+
     /* The VulkanRenderer class, which implements the standard Renderer using Vulkan compute shaders. */
     class VulkanRenderer: public Renderer {
     public:
@@ -59,8 +69,6 @@ namespace RayTracer {
         /* Command pool used to schedule quick memory jobs on. */
         Compute::CommandPool* memory_command_pool;
 
-        /* The DescriptorSetLayout for the insert shader call. */
-        Compute::DescriptorSetLayout* insert_dsl;
         /* The DescriptorSetLayout for the standard raytrace shader call. */
         Compute::DescriptorSetLayout* raytrace_dsl;
         /* Command buffer that is used to schedule staging-related memory transfers on. */
@@ -71,6 +79,9 @@ namespace RayTracer {
         /* GPU-side buffer that stores all the pre-rendered vertices from all entities, ready for rendering. */
         Compute::BufferHandle vk_entity_vertices;
 
+
+        /* Constructor that accepts a boolean. Regardless of its value, does not initialize any vulkan objects. */
+        VulkanRenderer(bool dont_init_vulkan);
 
         /* Helper function that takes a GPU-allocated faces & vertex buffer and inserts the data from the CPU-side faces & vertex at the given offsets. */
         void transfer_entity(const Compute::Buffer& vk_faces_buffer, uint32_t vk_faces_offset, const Compute::Buffer& vk_vertex_buffer, uint32_t vk_vertex_offset, const Tools::Array<GFace>& faces_buffer, const Tools::Array<glm::vec4>& vertex_buffer, Compute::Suite& suite);

@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:30:37
  * Last edited:
- *   11/05/2021, 21:13:12
+ *   21/05/2021, 16:53:39
  * Auto updated?
  *   Yes
  *
@@ -28,7 +28,9 @@ namespace RayTracer {
     /* The VulkanOnlineRenderer class, which renders to a window in real-time instead of a picture. */
     class VulkanOnlineRenderer: public VulkanRenderer {
     public:
-         /* Constant that determines the pool size of the device-local memory. */
+        /* Constant that determines how many frames are in flight during rendering. */
+        static const constexpr uint32_t max_frames_in_flight = 2;
+        /* Constant that determines the pool size of the device-local memory. */
         static const constexpr VkDeviceSize device_memory_size = 1024 * 1024 * 1024;
         /* Constant that determines the pool size of the transfer memory. */
         static const constexpr VkDeviceSize stage_memory_size = 1024 * 1024 * 1024;
