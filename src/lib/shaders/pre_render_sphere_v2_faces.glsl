@@ -4,7 +4,7 @@
  * Created:
  *   05/05/2021, 15:29:36
  * Last edited:
- *   19/05/2021, 17:22:03
+ *   21/05/2021, 14:43:57
  * Auto updated?
  *   Yes
  *
@@ -29,9 +29,9 @@ layout (local_size_x = 32, local_size_y = 32) in;
 
 /* Define specialization constants. */
 // The offset in the target faces buffer
-layout (constant_id = 0) const int faces_offset = 0;
+layout (constant_id = 0) const uint faces_offset = 0;
 // The offset in the target vertex buffer
-layout (constant_id = 1) const int vertex_offset = 0;
+layout (constant_id = 1) const uint vertex_offset = 0;
 
 
 
@@ -88,8 +88,7 @@ void main() {
     uint max_y = sphere.n_parallels;
 
     // Pre-compute the minus versions
-    uint x_m1 = max_x - 1;
-    if (x > 0) { x_m1 = x - 1; }
+    uint x_m1 = x > 0 ? x - 1 : max_x - 1;
     uint y_m1 = y - 1;
 
     // Switch to the correct generation algorithm based on the y value
@@ -100,23 +99,23 @@ void main() {
         // Get the index of the polar point
         uint p1 = vertex_offset;
         // Get the index of the previous point in this circle
-        uint p2 = vertex_offset + 1 + (y - 1) * max_x + x_m1;
+        uint p2 = vertex_offset + 1 + x_m1;
         // Get the index of the current point in this circle
-        uint p3 = vertex_offset + 1 + (y - 1) * max_x + x;
+        uint p3 = vertex_offset + 1 + x;
 
         // Compute the normal for these fellas
         vec3 n = normalize(cross(vertices.data[p3] - vertices.data[p1], vertices.data[p2] - vertices.data[p1]));
         // And finally, compute the color
         vec3 c = sphere.color * abs(dot(n, vec3(0.0, 0.0, -1.0)));
 
-        // Store as vertex
+        // Store as new face
         faces.data[faces_offset + x].v1 = p1;
         faces.data[faces_offset + x].v2 = p2;
         faces.data[faces_offset + x].v3 = p3;
         faces.data[faces_offset + x].normal = n;
         faces.data[faces_offset + x].color = c;
 
-    } else if (x < max_x && y > 1 && y < max_y) {
+    } else if (x < max_x && y > 1 && y < max_y - 1) {
         // Layer below another layer
 
         // First, pre-compute the base index of this layer's vertices in the resulting buffer
@@ -147,7 +146,7 @@ void main() {
         vec3 c1 = sphere.color * abs(dot(n1, vec3(0.0, 0.0, -1.0)));
         vec3 c2 = sphere.color * abs(dot(n2, vec3(0.0, 0.0, -1.0)));
 
-        // Store them both
+        // Store both faces
         faces.data[f_index + 2 * x].v1 = p1;
         faces.data[f_index + 2 * x].v2 = p3;
         faces.data[f_index + 2 * x].v3 = p4;
@@ -160,7 +159,7 @@ void main() {
         faces.data[f_index + 2 * x + 1].normal = n2;
         faces.data[f_index + 2 * x + 1].color = c2;
         
-    } else if (x < max_x && y == max_y) {
+    } else if (x < max_x && y == max_y - 1) {
         // South cap
 
         // Compute some indices first

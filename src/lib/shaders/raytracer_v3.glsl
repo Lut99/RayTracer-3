@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 13:59:41
  * Last edited:
- *   09/05/2021, 18:25:12
+ *   21/05/2021, 14:41:14
  * Auto updated?
  *   Yes
  *
@@ -134,6 +134,45 @@ vec4 ray_color(vec3 origin, vec3 direction) {
     // If we hit a vertex (or its too far away), return its color
     if (min_t < 1e99) {
         return faces.data[min_i].color;
+    } else {
+        // Return the blue sky
+        vec3 unit_direction = direction / length(direction);
+        float t = 0.5 * (unit_direction.y + 1.0);
+        return vec4((1.0 - t) * vec3(1.0) + t * vec3(0.5, 0.7, 1.0), 0.0);
+    }
+}
+
+/* Computes the color of a ray given the vector representing it. This version renders only the vertices as small spheres and does not use the faces. */
+vec4 ray_dot(vec3 origin, vec3 direction) {
+    // Determines the radius for all dots
+    #define dot_radius 0.05
+    // Determines the distance before dots go fully black
+    #define black_distance 4.0
+
+    // Loop through all vertices to find the closest one
+    uint min_i = 0;
+    float min_t = 1e99;
+    for (uint i = 0; i < vertices.data.length(); i++) {
+        vec3 vertex = vertices.data[i].xyz;
+
+        // Compute if the ray hits this "sphere" using the abc-formula
+        vec3 oc = origin - vertex;
+        float a = dot(direction, direction);
+        float b = 2.0 * dot(oc, direction);
+        float c = dot(oc, oc) - dot_radius * dot_radius;
+        float D = b * b - 4 * a * c;
+        if (D >= 0) {
+            float t = (-b - sqrt(D)) / (2.0 * a);
+            if (t < min_t) {
+                min_i = i;
+                min_t = t;
+            }
+        }
+    }
+
+    // If we found a t, return the (possibly darker) pixel
+    if (min_t < 1e99) {
+        return max(1.0 - min_t / black_distance, 0.0) * vec4(1.0, 0.0, 0.0, 0.0);
     } else {
         // Return the blue sky
         vec3 unit_direction = direction / length(direction);

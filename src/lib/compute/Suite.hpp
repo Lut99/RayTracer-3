@@ -4,7 +4,7 @@
  * Created:
  *   15/05/2021, 13:36:07
  * Last edited:
- *   15/05/2021, 13:40:05
+ *   21/05/2021, 14:28:47
  * Auto updated?
  *   Yes
  *
@@ -38,7 +38,7 @@ namespace RayTracer::Compute {
         /* Command pool which can be used to allocate one-time-record commandbuffers for actually running the compute shader. */
         CommandPool& compute_command_pool;
         /* Command buffer which can be used to perform staging memory operations with. */
-        const CommandBuffer& staging_cb;
+        CommandBuffer staging_cb;
     };
 }
 

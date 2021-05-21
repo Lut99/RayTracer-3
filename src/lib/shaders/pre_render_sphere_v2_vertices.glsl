@@ -4,7 +4,7 @@
  * Created:
  *   05/05/2021, 15:29:36
  * Last edited:
- *   19/05/2021, 16:59:01
+ *   21/05/2021, 14:21:13
  * Auto updated?
  *   Yes
  *
@@ -76,9 +76,9 @@ layout(std430, set = 0, binding = 2) buffer Vertices {
 /* Computes the coordinates of a single point on the sphere. */
 vec3 compute_point(float fx, float fy) {
     return sphere.center + sphere.radius * vec3(
-        sin(M_PI * (fy / float(sphere.n_parallels))) * cos(2 * M_PI * (fx / float(sphere.n_meridians))),
-        cos(M_PI * (fy / float(sphere.n_parallels))),
-        sin(M_PI * (fy / float(sphere.n_parallels))) * sin(2 * M_PI * (fx / float(sphere.n_meridians)))
+        sin(M_PI * (fy / float(sphere.n_parallels - 1))) * cos(2 * M_PI * (fx / float(sphere.n_meridians))),
+        cos(M_PI * (fy / float(sphere.n_parallels - 1))),
+        sin(M_PI * (fy / float(sphere.n_parallels - 1))) * sin(2 * M_PI * (fx / float(sphere.n_meridians)))
     );
 }
 

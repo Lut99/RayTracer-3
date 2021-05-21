@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:35
  * Last edited:
- *   19/05/2021, 17:38:51
+ *   21/05/2021, 14:24:20
  * Auto updated?
  *   Yes
  *
@@ -312,8 +312,8 @@ namespace RayTracer::Compute {
         ImageHandle allocate_image_h(uint32_t width, uint32_t height, VkFormat image_format, VkImageLayout image_layout, VkImageUsageFlags usage_flags, VkSharingMode sharing_mode = VK_SHARING_MODE_EXCLUSIVE, VkImageCreateFlags create_flags = 0);
         /* Allocates a new image that has the same specifications as the given Image object, returning only its handle. Note that the given Image needn't be allocated with the same pool as this one. */
         inline ImageHandle allocate_image_h(const Image& image) { return this->allocate_image_h(image.vk_extent.width, image.vk_extent.height, image.vk_format, image.vk_layout, image.vk_usage_flags, image.vk_sharing_mode, image.vk_format); }
-        /* Deallocates the buffer with the given handle. Does not throw an error if the handle doesn't exist, unless NDEBUG is not defined. */
-        void deallocate(BufferHandle buffer);
+        /* Deallocates the buffer or image with the given handle. Does not throw an error if the handle doesn't exist, unless NDEBUG is not defined. */
+        void deallocate(MemoryHandle handle);
 
         /* Defragements the entire pool, aligning all buffers next to each other in memory to create a maximally sized free block. Note that existing handles will remain valid. */
         void defrag();

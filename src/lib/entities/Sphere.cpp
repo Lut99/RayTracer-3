@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 12:45:50
  * Last edited:
- *   19/05/2021, 21:23:49
+ *   21/05/2021, 15:15:18
  * Auto updated?
  *   Yes
  *
@@ -69,9 +69,9 @@ static glm::vec3 compute_point(float fx, float fy, Sphere* sphere) {
     DENTER("ECS::compute_point");
 
     glm::vec3 result = sphere->center + sphere->radius * glm::vec3(
-        sin(M_PI * (fy / (float) sphere->n_parallels)) * cos(2 * M_PI * (fx / (float) sphere->n_meridians)),
-        cos(M_PI * (fy / (float) sphere->n_parallels)),
-        sin(M_PI * (fy / (float) sphere->n_parallels)) * sin(2 * M_PI * (fx / (float) sphere->n_meridians))
+        sin(M_PI * (fy / (float) (sphere->n_parallels - 1))) * cos(2 * M_PI * (fx / (float) sphere->n_meridians)),
+        cos(M_PI * (fy / (float) (sphere->n_parallels - 1))),
+        sin(M_PI * (fy / (float) (sphere->n_parallels - 1))) * sin(2 * M_PI * (fx / (float) sphere->n_meridians))
     );
 
     DRETURN result;
@@ -97,7 +97,7 @@ Sphere* ECS::create_sphere(const glm::vec3& center, float radius, uint32_t n_mer
     #endif
     result->pre_render_operation = EntityPreRenderOperation::epro_generate_sphere;
     // Compute how many faces & vertices to generate
-    result->pre_render_faces = n_meridians + 2 * ((n_parallels - 2) * n_meridians) + n_meridians;
+    result->pre_render_faces = n_meridians + 2 * ((n_parallels - 3) * n_meridians) + n_meridians;
     result->pre_render_vertices = 2 + (n_parallels - 2) * n_meridians;
 
     // Set the conceptual properties of the sphere
@@ -143,11 +143,6 @@ void ECS::cpu_pre_render_sphere(Tools::Array<GFace>& faces_buffer, Tools::Array<
                 // Get the index of the current point in this circle
                 uint32_t p3 = 1 + x;
 
-                if (p1 >= sphere->pre_render_vertices) { DLOG(fatal, "North pole: p1 is out of range (" + std::to_string(p1) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
-                if (p2 >= sphere->pre_render_vertices) { DLOG(fatal, "North pole: p2 is out of range (" + std::to_string(p2) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
-                if (p3 >= sphere->pre_render_vertices) { DLOG(fatal, "North pole: p3 is out of range (" + std::to_string(p3) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
-                if (x >= sphere->pre_render_faces) { DLOG(fatal, "North pole: x is out of range (" + std::to_string(x) + " >= " + std::to_string(sphere->pre_render_faces) + ")"); }
-
                 // Compute the matching points
                 glm::vec3 v1 = compute_point(0, 0, sphere);
                 glm::vec3 v2 = compute_point(x_m1, y, sphere);
@@ -169,7 +164,7 @@ void ECS::cpu_pre_render_sphere(Tools::Array<GFace>& faces_buffer, Tools::Array<
                 vertex_buffer[p1] = glm::vec4(v1, 0.0);
                 vertex_buffer[p2] = glm::vec4(v2, 0.0);
                 vertex_buffer[p3] = glm::vec4(v3, 0.0);
-            } else if (y < max_y) {
+            } else if (y < max_y - 1) {
                 // // In between two circles
 
                 // First, pre-compute the base index of this layer's vertices in the resulting buffer
@@ -183,14 +178,6 @@ void ECS::cpu_pre_render_sphere(Tools::Array<GFace>& faces_buffer, Tools::Array<
                 uint32_t p3 = 1 + (y - 1) * max_x + x_m1;
                 // Get the index of the current point in this circle
                 uint32_t p4 = 1 + (y - 1) * max_x + x;
-
-                DLOG(info, std::to_string(y));
-                if (p1 >= sphere->pre_render_vertices) { DLOG(fatal, "Circle: p1 is out of range (" + std::to_string(p1) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
-                if (p2 >= sphere->pre_render_vertices) { DLOG(fatal, "Circle: p2 is out of range (" + std::to_string(p2) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
-                if (p3 >= sphere->pre_render_vertices) { DLOG(fatal, "Circle: p3 is out of range (" + std::to_string(p3) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
-                if (p4 >= sphere->pre_render_vertices) { DLOG(fatal, "Circle: p4 is out of range (" + std::to_string(p4) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
-                if (f_index + 2 * x >= sphere->pre_render_faces) { DLOG(fatal, "Circle: 2 * x is out of range (" + std::to_string(f_index + 2 * x) + " >= " + std::to_string(sphere->pre_render_faces) + ")"); }
-                if (f_index + 2 * x + 1 >= sphere->pre_render_faces) { DLOG(fatal, "Circle: 2 * x + 1 is out of range (" + std::to_string(f_index + 2 * x + 1) + " >= " + std::to_string(sphere->pre_render_faces) + ")"); }
                 
                 // Compute the matching points
                 glm::vec3 v1 = compute_point(x_m1, y_m1, sphere);
@@ -248,11 +235,6 @@ void ECS::cpu_pre_render_sphere(Tools::Array<GFace>& faces_buffer, Tools::Array<
                 uint32_t p2 = 1 + (y_m1 - 1) * max_x + x_m1;
                 // Get the index of the current point in (previous) circle
                 uint32_t p3 = 1 + (y_m1 - 1) * max_x + x;
-
-                if (p1 >= sphere->pre_render_vertices) { DLOG(fatal, "South pole: p1 is out of range (" + std::to_string(p1) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
-                if (p2 >= sphere->pre_render_vertices) { DLOG(fatal, "South pole: p2 is out of range (" + std::to_string(p2) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
-                if (p3 >= sphere->pre_render_vertices) { DLOG(fatal, "South pole: p3 is out of range (" + std::to_string(p3) + " >= " + std::to_string(sphere->pre_render_vertices) + ")"); }
-                if (f_index + x >= sphere->pre_render_faces) { DLOG(fatal, "South pole: x is out of range (" + std::to_string(f_index + x) + " >= " + std::to_string(sphere->pre_render_faces) + ")"); }
                 
                 // Compute the matching points
                 glm::vec3 v1 = compute_point(0, y, sphere);
@@ -379,7 +361,7 @@ void ECS::gpu_pre_render_sphere(const Compute::Buffer& faces_buffer, uint32_t fa
 
     // Allocate it only for the SphereData
     size_t gsphere_size = sizeof(SphereData);
-    Buffer staging = gpu.stage_memory_pool.allocate_buffer(gsphere_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    Buffer staging = gpu.stage_memory_pool.allocate_buffer(gsphere_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
 
 
@@ -450,6 +432,7 @@ void ECS::gpu_pre_render_sphere(const Compute::Buffer& faces_buffer, uint32_t fa
         );
 
         // Next, record the command buffer
+        DLOG(info, "Recording command buffer...");
         CommandBuffer cb_compute = gpu.compute_command_pool.allocate();
         cb_compute.begin();
 
@@ -457,6 +440,13 @@ void ECS::gpu_pre_render_sphere(const Compute::Buffer& faces_buffer, uint32_t fa
         pipeline_vertices.bind(cb_compute);
         descriptor_set.bind(cb_compute, pipeline_vertices.layout());
         vkCmdDispatch(cb_compute, (sphere->n_meridians / 32) + 1, (sphere->n_parallels / 32) + 1, 1);
+        
+        // Add a barrier to prevent race conditions
+        VkMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        vkCmdPipelineBarrier(cb_compute, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 1, &barrier, 0, nullptr, 0, nullptr);
 
         // Bind the faces shader
         pipeline_faces.bind(cb_compute);
@@ -466,6 +456,7 @@ void ECS::gpu_pre_render_sphere(const Compute::Buffer& faces_buffer, uint32_t fa
         cb_compute.end();
 
         // Launch it
+        DLOG(info, "Submitting command buffer...");
         VkResult vk_result;
         VkSubmitInfo submit_info = cb_compute.get_submit_info();
         if ((vk_result = vkQueueSubmit(gpu.gpu.compute_queue(), 1, &submit_info, VK_NULL_HANDLE)) != VK_SUCCESS) {

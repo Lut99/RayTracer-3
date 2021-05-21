@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   19/05/2021, 18:05:59
+ *   21/05/2021, 15:29:59
  * Auto updated?
  *   Yes
  *
@@ -309,7 +309,7 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
     DLOG(info, "Total: " + std::to_string(entities.size()) + " entities, with " + std::to_string(n_faces) + " faces (" + std::to_string(n_faces * sizeof(GFace)) + " bytes) and " + std::to_string(n_vertices) + " vertices (" + std::to_string(n_vertices * sizeof(glm::vec4)) + " bytes)");
 
     // With the size, initialize the two output buffers
-    this->vk_entity_faces = this->device_memory_pool->allocate_buffer_h(n_faces * sizeof(GFace), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+    this->vk_entity_faces = this->device_memory_pool->allocate_buffer_h(n_faces * sizeof(GFace), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     Buffer vk_entity_faces = this->device_memory_pool->deref_buffer(this->vk_entity_faces);
     this->vk_entity_vertices = this->device_memory_pool->allocate_buffer_h(n_vertices * sizeof(glm::vec4), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     Buffer vk_entity_vertices = this->device_memory_pool->deref_buffer(this->vk_entity_vertices);
@@ -348,6 +348,32 @@ void VulkanRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entities)
             // Increment the offset, and we're done!
             faces_offset += entities[i]->pre_render_faces;
             vertex_offset += entities[i]->pre_render_vertices;
+
+            // // For debugging purposes, fetch the faces and compare them with the GPU-generated counterpart
+            // GFace faces[n_faces];
+            // Buffer staging = suite.stage_memory_pool.allocate_buffer(n_faces * sizeof(GFace), VK_BUFFER_USAGE_TRANSFER_DST_BIT);
+            // vk_entity_faces.get(suite.gpu, staging, suite.staging_cb, suite.gpu.memory_queue(), faces, n_faces * sizeof(GFace));
+            // suite.stage_memory_pool.deallocate(staging);
+
+            // entity_faces.clear();
+            // entity_vertices.clear();
+            // entity_faces.resize(entities[i]->pre_render_faces);
+            // entity_vertices.resize(entities[i]->pre_render_vertices);
+            // cpu_pre_render_sphere(entity_faces, entity_vertices, (Sphere*) entities[i]);
+
+            // // Compare
+            // for (size_t i = 0; i < n_faces; i++) {
+            //     if (faces[i].v1 != entity_faces[i].v1 ||
+            //         faces[i].v2 != entity_faces[i].v2 ||
+            //         faces[i].v3 != entity_faces[i].v3)
+            //     {
+            //         DLOG(warning, "GPU-rendered face's normal differs from CPU-rendered face's normal: {" + std::to_string(faces[i].normal.x) + "," + std::to_string(faces[i].normal.y) + "," + std::to_string(faces[i].normal.z) + "} VS {" + std::to_string(entity_faces[i].normal.x) + "," + std::to_string(entity_faces[i].normal.y) + "," + std::to_string(entity_faces[i].normal.z) + "}")
+            //     }
+            //     glm::vec3 dn = faces[i].normal - entity_faces[i].normal;
+            //     if (dn.x > 1e-6 || dn.y > 1e-6 || dn.z > 1e-6) {
+            //         DLOG(warning, "GPU-rendered face's normal differs from CPU-rendered face's normal: {" + std::to_string(faces[i].normal.x) + "," + std::to_string(faces[i].normal.y) + "," + std::to_string(faces[i].normal.z) + "} VS {" + std::to_string(entity_faces[i].normal.x) + "," + std::to_string(entity_faces[i].normal.y) + "," + std::to_string(entity_faces[i].normal.z) + "}")
+            //     }
+            // }
 
         } else if (entities[i]->pre_render_mode & EntityPreRenderModeFlags::eprmf_cpu) {
             // Clear the buffers and set them to the correct size
@@ -436,7 +462,7 @@ void VulkanRenderer::render(Camera& cam) const {
     camera_staging.unmap(*this->gpu);
 
     // Next, we schedule the copies of the staging buffer to the real buffer
-    CommandBuffer staging_cb = (*this->compute_command_pool)[this->staging_cb_h];
+    CommandBuffer staging_cb = (*this->memory_command_pool)[this->staging_cb_h];
     camera_staging.copyto(staging_cb, this->gpu->memory_queue(), camera);
 
     // Once that's done, deallocate the staging buffer for the camera.

@@ -4,7 +4,7 @@
  * Created:
  *   06/05/2021, 16:51:56
  * Last edited:
- *   19/05/2021, 17:29:22
+ *   21/05/2021, 15:29:11
  * Auto updated?
  *   Yes
  *
@@ -134,6 +134,8 @@ void ECS::cpu_pre_render_object(Tools::Array<GFace>& faces_buffer, Tools::Array<
 
     // Start looping through it
     size_t line_i = 1;
+    size_t vertex_i = 0;
+    size_t faces_i = 0;
     std::string line;
     while(std::getline(h, line)) {
         // First, try to parse the whole line as a triplet of floats with a character before it
@@ -147,14 +149,14 @@ void ECS::cpu_pre_render_object(Tools::Array<GFace>& faces_buffer, Tools::Array<
         // Examine the correct mode
         if (type == 'v') {
             // Store as new vertex
-            vertex_buffer.push_back(glm::vec4(obj->center + obj->scale * glm::vec3(v1, v2, v3), 0.0));
+            vertex_buffer[vertex_i++] = glm::vec4(obj->center + obj->scale * glm::vec3(v1, v2, v3), 0.0);
         } else if (type == 'f') {
             // Store as new faces of indices
-            faces_buffer.push_back({
+            faces_buffer[faces_i++] = {
                 (uint32_t) v1, (uint32_t) v2, (uint32_t) v3,
                 glm::vec3(0.0, 0.0, 0.0),
                 obj->color
-            });
+            };
         } else {
             DLOG(warning, (std::string("Encountered line with unknown type '") += type) + "'");
         }

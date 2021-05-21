@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 15:25:06
  * Last edited:
- *   19/05/2021, 20:41:42
+ *   21/05/2021, 15:31:17
  * Auto updated?
  *   Yes
  *
@@ -44,7 +44,7 @@ using namespace CppDebugger::SeverityValues;
  * @param direction The (normalized) direction of the ray.
  * @return The color as a three-dimensional vector.
  */
-glm::vec3 ray_color(const Tools::Array<GFace>& faces, const Tools::Array<glm::vec4>& vertices, glm::vec3 origin, glm::vec3 direction) {
+static glm::vec3 ray_color(const Tools::Array<GFace>& faces, const Tools::Array<glm::vec4>& vertices, glm::vec3 origin, glm::vec3 direction) {
     DENTER("ray_color");
 
     // Loop through the vertices so find any one we hit
@@ -102,6 +102,52 @@ glm::vec3 ray_color(const Tools::Array<GFace>& faces, const Tools::Array<glm::ve
         DRETURN faces[min_i].color;
     } else {
         // Return the blue sky
+        glm::vec3 unit_direction = direction / length(direction);
+        float t = 0.5 * (unit_direction.y + 1.0);
+        DRETURN glm::vec3((1.0f - t) * glm::vec3(1.0) + t * glm::vec3(0.5, 0.7, 1.0));
+    }
+}
+
+/* @brief Debug algorithm, that prints dots on the given vertices instead of rendering the faces.
+ * @param faces The list of faces we thus don't render, and is here only for compatibility with ray_color. Not actually used.
+ * @param vertices The list of vertices to print dots for.
+ * @param origin The origin of the ray.
+ * @param direction The (normalized) direction of the ray.
+ * @return The color of the ray/pixel as a three-dimensional vector.
+ */
+static glm::vec3 ray_dot(const Tools::Array<GFace>& faces, const Tools::Array<glm::vec4>& vertices, glm::vec3 origin, glm::vec3 direction) {
+    DENTER("ray_dot");
+    (void) faces;    
+
+    // Determines the radius for all dots
+    const constexpr float dot_radius = 0.05;
+    // Determines the distance before dots go fully black
+    const constexpr float black_distance = 4.0;
+
+    // Loop through all vertices to find the closest one
+    float min_t = 1e99;
+    for (size_t i = 0; i < vertices.size(); i++) {
+        const glm::vec3& vertex = vertices[i];
+
+        // Compute if the ray hits this "sphere" using the abc-formula
+        glm::vec3 oc = origin - vertex;
+        float a = glm::dot(direction, direction);
+        float b = 2.0 * glm::dot(oc, direction);
+        float c = glm::dot(oc, oc) - dot_radius * dot_radius;
+        float D = b * b - 4 * a * c;
+        if (D >= 0) {
+            float t = (-b - sqrtf(D)) / (2.0 * a);
+            if (t < min_t) {
+                min_t = t;
+            }
+        }
+    }
+
+    // If we found a t, return the (possibly darker) pixel
+    if (min_t < 1e99) {
+        DRETURN std::max(1.0f - min_t / black_distance, 0.0f) * glm::vec3(1.0, 0.0, 0.0);
+    } else {
+        // Return the background
         glm::vec3 unit_direction = direction / length(direction);
         float t = 0.5 * (unit_direction.y + 1.0);
         DRETURN glm::vec3((1.0f - t) * glm::vec3(1.0) + t * glm::vec3(0.5, 0.7, 1.0));
@@ -197,9 +243,7 @@ void SequentialRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entit
             }
 
             // Once done, merge them in the general lists
-            // this->transfer_entity(this->entity_faces, this->entity_vertices, entity_faces, entity_vertices);   
-            this->entity_faces = entity_faces;
-            this->entity_vertices = entity_vertices;         
+            this->transfer_entity(this->entity_faces, this->entity_vertices, entity_faces, entity_vertices);      
 
         } else {
             DLOG(fatal, "Entity " + std::to_string(i) + " of type " + entity_type_names[entities[i]->type] + " with the sequential back-end.");
@@ -208,13 +252,13 @@ void SequentialRenderer::prerender(const Tools::Array<ECS::RenderEntity*>& entit
         // No need to insert again, as transfer_entity does this for us now
     }
 
-    cout << "Faces:" << endl;
-    for (size_t i = 0; i < this->entity_faces.size(); i++) {
-        glm::vec3 v1 = this->entity_vertices[this->entity_faces[i].v1];
-        glm::vec3 v2 = this->entity_vertices[this->entity_faces[i].v2];
-        glm::vec3 v3 = this->entity_vertices[this->entity_faces[i].v3];
-        cout << "    x: {" << v1.x << "," << v1.y << "," << v1.z << "}" << " | y: {" << v2.x << "," << v2.y << "," << v2.z << "} | z: {" << v3.x << "," << v3.y << "," << v3.z << "}" << endl;
-    }
+    // cout << "Faces:" << endl;
+    // for (size_t i = 0; i < this->entity_faces.size(); i++) {
+    //     glm::vec3 v1 = this->entity_vertices[this->entity_faces[i].v1];
+    //     glm::vec3 v2 = this->entity_vertices[this->entity_faces[i].v2];
+    //     glm::vec3 v3 = this->entity_vertices[this->entity_faces[i].v3];
+    //     cout << "    x: {" << v1.x << "," << v1.y << "," << v1.z << "}" << " | y: {" << v2.x << "," << v2.y << "," << v2.z << "} | z: {" << v3.x << "," << v3.y << "," << v3.z << "}" << endl;
+    // }
 
     // We're done! We pre-rendered all objects!
     DDEDENT;
@@ -250,8 +294,9 @@ void SequentialRenderer::render(Camera& camera) const {
 
             // Compute the ray's color and store it as a vector
             camera.get_frame().d()[y * width + x] = ray_color(this->entity_faces, this->entity_vertices, camera.origin, ray);
+            (void) ray_dot;
 
-            // if (i % 1000 == 0) { DLOG(info, "Rendered ray " + std::to_string(i) + "/" + std::to_string(width * height)); }
+            if (i % 1000 == 0) { DLOG(info, "Rendered ray " + std::to_string(i) + "/" + std::to_string(width * height)); }
             i++;
         }
     }

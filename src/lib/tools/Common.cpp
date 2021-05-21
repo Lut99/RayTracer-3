@@ -4,7 +4,7 @@
  * Created:
  *   02/05/2021, 17:12:29
  * Last edited:
- *   03/05/2021, 14:55:17
+ *   21/05/2021, 15:23:51
  * Auto updated?
  *   Yes
  *
@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <linux/limits.h>
 #endif
+#include <sstream>
 #include <CppDebugger.hpp>
 
 #include "Common.hpp"
@@ -69,4 +70,30 @@ std::string Tools::get_executable_path() {
     DRETURN result;
 
     #endif
+}
+
+
+
+/* Function that returns a string more compactly describing the given number of bytes. */
+std::string Tools::bytes_to_string(size_t n_bytes) {
+    DENTER("Tools::bytes_to_string");
+
+    // Select the proper scale to write the bytes to
+    std::stringstream sstr;
+    if (n_bytes < 1024) {
+        // Write as normal bytes
+        sstr << n_bytes << " bytes";
+    } else if (n_bytes < 1024 * 1024) {
+        // Write as kilobytes
+        sstr << ((double) n_bytes / 1024.0) << " KiB";
+    } else if (n_bytes < 1024 * 1024 * 1024) {
+        // Write as megabytes
+        sstr << ((double) n_bytes / (1024.0 * 1024.0)) << " MiB";
+    } else {
+        // Write as gigabytes
+        sstr << ((double) n_bytes / (1024.0 * 1024.0 * 1024.0)) << " GiB";
+    }
+    
+    // Done, return
+    DRETURN sstr.str();
 }

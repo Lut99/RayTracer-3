@@ -4,7 +4,7 @@
  * Created:
  *   02/05/2021, 17:12:22
  * Last edited:
- *   02/05/2021, 17:39:34
+ *   21/05/2021, 15:20:52
  * Auto updated?
  *   Yes
  *
@@ -20,6 +20,9 @@
 namespace Tools {
     /* Function that returns the path of the folder of the executable. */
     std::string get_executable_path();
+
+    /* Function that returns a string more compactly describing the given number of bytes. */
+    std::string bytes_to_string(size_t n_bytes);
 }
 
 #endif

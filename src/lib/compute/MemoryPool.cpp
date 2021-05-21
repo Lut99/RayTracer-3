@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:42
  * Last edited:
- *   19/05/2021, 18:00:31
+ *   21/05/2021, 15:25:05
  * Auto updated?
  *   Yes
  *
@@ -17,6 +17,7 @@
 #include <CppDebugger.hpp>
 
 #include "ErrorCodes.hpp"
+#include "tools/Common.hpp"
 
 #include "MemoryPool.hpp"
 
@@ -237,7 +238,7 @@ void Buffer::copyto(const CommandBuffer& command_buffer, VkQueue vk_queue, const
 
     // First, check if the destination buffer is large enough
     if (destination.vk_memory_size - target_offset < n_bytes) {
-        DLOG(fatal, "Cannot copy " + std::to_string(n_bytes) + " bytes to buffer of only " + std::to_string(destination.vk_memory_size) + " bytes (with offset=" + std::to_string(target_offset) + ").");
+        DLOG(fatal, "Cannot copy " + Tools::bytes_to_string(n_bytes) + " to buffer of only " + Tools::bytes_to_string(destination.vk_memory_size) + " (with offset=" + std::to_string(target_offset) + ").");
     }
 
     // Next, make sure they have the required flags
@@ -582,7 +583,7 @@ ImageHandle MemoryPool::allocate_image_h(uint32_t width, uint32_t height, VkForm
     DRETURN result;
 }
 
-/* Deallocates the buffer with the given handle. Does not throw an error if the handle doesn't exist, unless NDEBUG is not defined. */
+/* Deallocates the buffer or image with the given handle. Does not throw an error if the handle doesn't exist, unless NDEBUG is not defined. */
 void MemoryPool::deallocate(MemoryHandle handle) {
     DENTER("Compute::MemoryPool::deallocate");
 
