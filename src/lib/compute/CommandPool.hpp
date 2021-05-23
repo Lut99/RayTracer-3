@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 13:03:55
  * Last edited:
- *   09/05/2021, 17:35:44
+ *   23/05/2021, 21:27:09
  * Auto updated?
  *   Yes
  *
@@ -43,6 +43,9 @@ namespace RayTracer::Compute {
         friend class CommandPool;
 
     public:
+        /* Initializes the CommandBuffer to a default, unusable state. */
+        CommandBuffer();
+
         /* Begins recording the command buffer. Overwrites whatever is already recorded here, for some reason. Takes optional usage flags for this recording. */
         void begin(VkCommandBufferUsageFlags usage_flags = 0) const;
         /* Ends recording the command buffer, but does not yet submit to any queue unless one is given. If so, then you can optionally specify to wait or not to wait for the queue to become idle. */
@@ -110,6 +113,9 @@ namespace RayTracer::Compute {
         inline VkCommandPool command_pool() const { return this->vk_command_pool; }
         /* Implicitly returns the internal VkCommandPool object. */
         inline operator VkCommandPool() const { return this->vk_command_pool; }
+
+        /* Returns the queue family index for this command pool. */
+        inline uint32_t queue() const { return this->vk_queue_index; }
 
         /* Copy assignment operator for the CommandPool class, which is deleted. */
         inline CommandPool& operator=(const CommandPool& other) { return *this = CommandPool(other); }

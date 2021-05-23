@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:30:37
  * Last edited:
- *   21/05/2021, 16:53:39
+ *   23/05/2021, 20:45:03
  * Auto updated?
  *   Yes
  *
@@ -36,6 +36,10 @@ namespace RayTracer {
         static const constexpr VkDeviceSize stage_memory_size = 1024 * 1024 * 1024;
         /* The maximum number of descriptor sets in the desriptor pool. */
         static const constexpr uint32_t max_descriptor_sets = 1;
+
+    private:
+        /* Extra command pool for buffers on the presentation queue. */
+        Compute::CommandPool* present_command_pool;
 
     public:
         /* Constructor for the VulkanOnlineRenderer class, which takes nothing to be compatible. */

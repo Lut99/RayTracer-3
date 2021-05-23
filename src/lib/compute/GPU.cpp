@@ -4,7 +4,7 @@
  * Created:
  *   16/04/2021, 17:21:49
  * Last edited:
- *   10/05/2021, 16:34:27
+ *   23/05/2021, 21:17:19
  * Auto updated?
  *   Yes
  *
@@ -258,16 +258,16 @@ void DeviceQueueInfo::check_present(VkPhysicalDevice vk_physical_device, VkSurfa
         vkGetPhysicalDeviceSurfaceSupportKHR(vk_physical_device, i, vk_surface, &supports_presenting);
 
         // If it supports presenting, then set it if a) it's the first or b) it's different from any of the other found queues
-        if (!this->supports_presentation || (this->supports_compute && this->presentation_index != this->compute_index && this->supports_memory && this->presentation_index != this->memory_index)) {
+        if (supports_presenting == VK_TRUE && (!this->supports_presentation || (this->supports_compute && this->presentation_index != this->compute_index && this->supports_memory && this->presentation_index != this->memory_index))) {
             this->supports_presentation = true;
             this->presentation_index = static_cast<uint32_t>(i);
         }
     }
 
-    // If we found a queue that we like, then dive deeper into the formats available
-    if (this->supports_presentation) {
+    // // If we found a queue that we like, then dive deeper into the formats available
+    // if (this->supports_presentation) {
         
-    }
+    // }
 
     // Done, updated!
     DRETURN;

@@ -4,7 +4,7 @@
  * Created:
  *   25/04/2021, 11:36:35
  * Last edited:
- *   21/05/2021, 18:27:20
+ *   23/05/2021, 20:37:45
  * Auto updated?
  *   Yes
  *
@@ -90,7 +90,7 @@ namespace RayTracer::Compute {
         /* Returns the memory offset of the buffer, in bytes. */
         inline VkDeviceSize offset() const { return this->vk_memory_offset; }
         /* Explicit retrieval of the internal buffer object. */
-        inline VkBuffer buffer() const { return this->vk_buffer; }
+        inline const VkBuffer& buffer() const { return this->vk_buffer; }
         /* Implicit retrieval of the internal buffer object. */
         inline operator VkBuffer() const { return this->vk_buffer; }
         /* Explicit retrieval of the internal handle. */

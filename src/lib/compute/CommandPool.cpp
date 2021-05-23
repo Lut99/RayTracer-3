@@ -4,7 +4,7 @@
  * Created:
  *   27/04/2021, 13:03:50
  * Last edited:
- *   09/05/2021, 17:36:35
+ *   23/05/2021, 21:24:10
  * Auto updated?
  *   Yes
  *
@@ -105,6 +105,11 @@ static void populate_submit_info(VkSubmitInfo& submit_info, const VkCommandBuffe
 
 
 /***** COMMANDBUFFER CLASS *****/
+/* Initializes the CommandBuffer to a default, unusable state. */
+CommandBuffer::CommandBuffer() :
+    vk_handle(0),
+    vk_command_buffer(nullptr)
+{}
 /* Private constructor for the CommandBuffer, which only takes the handle to this buffer and the VkCommandBuffer object to wrap. */
 CommandBuffer::CommandBuffer(CommandBufferHandle handle, VkCommandBuffer vk_command_buffer) :
     vk_handle(handle),

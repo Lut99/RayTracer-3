@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:30:34
  * Last edited:
- *   21/05/2021, 21:19:23
+ *   23/05/2021, 21:33:46
  * Auto updated?
  *   Yes
  *
@@ -41,8 +41,8 @@ static void populate_buffer_image_copy(VkBufferImageCopy& buffer_image_copy, uin
     VkImageSubresourceLayers image_subresource_layers{};
     image_subresource_layers.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     image_subresource_layers.baseArrayLayer = 0;
+    image_subresource_layers.mipLevel = 0;
     image_subresource_layers.layerCount = 1;
-    image_subresource_layers.mipLevel = 1;
 
     // Set the properties of the source buffer (we copy it entirely)
     buffer_image_copy.bufferOffset = 0;
@@ -91,6 +91,73 @@ static void populate_buffer_image_copy(VkBufferImageCopy& buffer_image_copy, uin
 //     // Done
 //     DRETURN;
 // }
+
+/* Populates a given VkImageMemoryBarrier struct. */
+static void populate_image_barrier(VkImageMemoryBarrier& image_barrier, VkImage vk_image, VkImageLayout old_layout, VkImageLayout new_layout, VkAccessFlags src_access, VkAccessFlags dst_access, uint32_t src_queue, uint32_t dst_queue = UINT32_MAX) {
+    DENTER("populate_image_barrier");
+
+    // If the destination queue is the default value, then set it to the source queue
+    if (dst_queue == UINT32_MAX) {
+        dst_queue = src_queue;
+    }
+
+    // Set to std
+    image_barrier = {};
+    image_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+
+    // Set the image to wait for
+    image_barrier.image = vk_image;
+
+    // Set from which to which layout we move
+    image_barrier.oldLayout = old_layout;
+    image_barrier.newLayout = new_layout;
+
+    // Set which access masks
+    image_barrier.srcAccessMask = src_access;
+    image_barrier.dstAccessMask = dst_access;
+
+    // Define to which queue we transfer
+    image_barrier.srcQueueFamilyIndex = src_queue;
+    image_barrier.dstQueueFamilyIndex = dst_queue;
+
+    // Set the subresource information for this image (std)
+    image_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    image_barrier.subresourceRange.baseArrayLayer = 0;
+    image_barrier.subresourceRange.baseMipLevel = 0;
+    image_barrier.subresourceRange.levelCount = 1;
+    image_barrier.subresourceRange.layerCount = 1;
+
+    DRETURN;
+}
+
+/* Populates a given VkBufferMemoryBarrier struct. */
+static void populate_buffer_barrier(VkBufferMemoryBarrier& buffer_barrier, const Buffer& buffer, VkAccessFlags src_access, VkAccessFlags dst_access, uint32_t src_queue, uint32_t dst_queue = UINT32_MAX) {
+    DENTER("populate_buffer_barrier");
+
+    // If the destination queue is the default value, then set it to the source queue
+    if (dst_queue == UINT32_MAX) {
+        dst_queue = src_queue;
+    }
+
+    // Set to std
+    buffer_barrier = {};
+    buffer_barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+
+    // Set the buffer to wait for
+    buffer_barrier.buffer = buffer;
+    buffer_barrier.offset = 0;
+    buffer_barrier.size = VK_WHOLE_SIZE;
+
+    // Set which access masks
+    buffer_barrier.srcAccessMask = src_access;
+    buffer_barrier.dstAccessMask = dst_access;
+
+    // Define to which queue we transfer
+    buffer_barrier.srcQueueFamilyIndex = src_queue;
+    buffer_barrier.dstQueueFamilyIndex = dst_queue;
+
+    DRETURN;
+}
 
 /* Populates a given VkPresentInfoKHR struct. */
 static void populate_present_info(VkPresentInfoKHR& present_info, const Swapchain& swapchain, const uint32_t& image_index, const VkSemaphore& vk_semaphore) {
@@ -147,7 +214,8 @@ static void populate_fence_info(VkFenceCreateInfo& fence_info) {
 /***** VULKANONLINERENDERER CLASS *****/
 /* Constructor for the VulkanOnlineRenderer class, which takes nothing to be compatible. Note that it does not rely on the parent constructor, since we want to start the vulkan instance & GPU differently. */
 VulkanOnlineRenderer::VulkanOnlineRenderer() :
-    VulkanRenderer(false)
+    VulkanRenderer(false),
+    present_command_pool(nullptr)
 {
     DENTER("VulkanOnlineRenderer::VulkanOnlineRenderer");
     DLOG(info, "Initializing Vulkan-based online renderer...");
@@ -191,7 +259,7 @@ VulkanOnlineRenderer::VulkanOnlineRenderer() :
         VulkanOnlineRenderer::max_descriptor_sets
     );
 
-    this->compute_command_pool = new CommandPool(*this->gpu, this->gpu->queue_info().compute());
+    this->compute_command_pool = new CommandPool(*this->gpu, this->gpu->queue_info().compute(), VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
     this->memory_command_pool = new CommandPool(*this->gpu, this->gpu->queue_info().memory(), VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
     // Initialize the descriptor set layout for the raytrace call
@@ -214,13 +282,27 @@ VulkanOnlineRenderer::VulkanOnlineRenderer() :
 
 /* Copy constructor for the VulkanOnlineRenderer class. */
 VulkanOnlineRenderer::VulkanOnlineRenderer(const VulkanOnlineRenderer& other) :
-    VulkanRenderer(other)
-{}
+    VulkanRenderer(other),
+    present_command_pool(other.present_command_pool)
+{
+    DENTER("Compute::VulkanOnlineRenderer::VulkanOnlineRenderer(copy)");
+    
+    // Copy our special command pool too
+    if (other.present_command_pool != nullptr) {
+        this->present_command_pool = new CommandPool(*other.present_command_pool);
+    }
+
+    DLEAVE;
+}
 
 /* Move constructor for the VulkanOnlineRenderer class. */
 VulkanOnlineRenderer::VulkanOnlineRenderer(VulkanOnlineRenderer&& other) :
-    VulkanRenderer(std::move(other))
-{}
+    VulkanRenderer(std::move(other)),
+    present_command_pool(other.present_command_pool)
+{
+    // Set the deallocatable stuff to nullptrs
+    this->present_command_pool = nullptr;
+}
 
 /* Destructor for the VulkanOnlineRenderer class. */
 VulkanOnlineRenderer::~VulkanOnlineRenderer() {
@@ -228,6 +310,10 @@ VulkanOnlineRenderer::~VulkanOnlineRenderer() {
     DLOG(info, "Cleaning online renderer stuff...");
     DINDENT;
     
+    if (this->present_command_pool != nullptr) {
+        delete this->present_command_pool;
+    }
+
     DLOG(info, "Terminating GLFW library...");
     glfwTerminate();
 
@@ -253,6 +339,9 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
 
     // Also update the GPU info for its presentation queue support
     this->gpu->check_present(glfw_surface);
+
+    // With this, allocate a compute queue for the newly found presentation queue
+    CommandPool present_command_pool(*this->gpu, this->gpu->queue_info().presentation(), VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
 
 
@@ -290,8 +379,16 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
     Buffer vk_entity_faces = this->device_memory_pool->deref_buffer(this->vk_entity_faces);
     Buffer vk_entity_vertices = this->device_memory_pool->deref_buffer(this->vk_entity_vertices);
 
-    // Fetch the internal command buffer handle
+    // Fetch the internal command buffer handle for staging
     CommandBuffer staging_cb = (*this->memory_command_pool)[this->staging_cb_h];
+
+    // Prepare the list of compute command buffers for each frame
+    Tools::Array<CommandBuffer> compute_cbs(VulkanOnlineRenderer::max_frames_in_flight);
+    Tools::Array<CommandBuffer> copy_cbs(VulkanOnlineRenderer::max_frames_in_flight);
+    for (uint32_t i = 0; i < VulkanOnlineRenderer::max_frames_in_flight; i++) {
+        compute_cbs.push_back(this->compute_command_pool->allocate());
+        copy_cbs.push_back(present_command_pool.allocate());
+    }
 
 
 
@@ -337,8 +434,10 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
     DLOG(info, "Preparing synchronization structures...");
     // Keeps track of when an image has been acquired completely
     Tools::Array<VkSemaphore> image_ready_semaphores;
-    // Keeps track of when a frame has been rendered completely
+    // Keeps track of when a frame has been rendered
     Tools::Array<VkSemaphore> render_ready_semaphores;
+    // Keeps track of when a frame is done being copied to the swapchain image
+    Tools::Array<VkSemaphore> copy_ready_semaphores;
     // Keeps track of which frames we're using (NOT swapchain images)
     Tools::Array<VkFence> frame_in_flight_fences;
     // Keeps track of which swapchain images are used by a frame
@@ -347,6 +446,7 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
     // Resize the arrays to the correct size
     image_ready_semaphores.resize(VulkanOnlineRenderer::max_frames_in_flight);
     render_ready_semaphores.resize(VulkanOnlineRenderer::max_frames_in_flight);
+    copy_ready_semaphores.resize(VulkanOnlineRenderer::max_frames_in_flight);
     frame_in_flight_fences.resize(VulkanOnlineRenderer::max_frames_in_flight);
     image_in_flight_fences.resize(swapchain->size());
 
@@ -368,6 +468,11 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
             DLOG(fatal, "Could not create render ready semaphore " + std::to_string(i) + ": " + vk_error_map[vk_result]);
         }
 
+        // Allocate the copy ready one
+        if ((vk_result = vkCreateSemaphore(*this->gpu, &semaphore_info, nullptr, &copy_ready_semaphores[i])) != VK_SUCCESS) {
+            DLOG(fatal, "Could not create copy ready semaphore " + std::to_string(i) + ": " + vk_error_map[vk_result]);
+        }
+
         // Finally, allocate a fence
         if ((vk_result = vkCreateFence(*this->gpu, &fence_info, nullptr, &frame_in_flight_fences[i])) != VK_SUCCESS) {
             DLOG(fatal, "Could not create fence " + std::to_string(i) + ": " + vk_error_map[vk_result]);
@@ -385,6 +490,7 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
     DLOG(info, "Entering game loop...");
     DINDENT;
     uint32_t current_frame = 0;
+    bool rendered_once = false;
     while (!glfwWindowShouldClose(glfw_window)) {
         // Let's handle the window events
         glfwPollEvents();
@@ -426,58 +532,138 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
 
 
         // With that all set, begin recording the command buffer
-        CommandBuffer compute_cb = this->compute_command_pool->allocate();
-        compute_cb.begin();
+        compute_cbs[current_frame].begin();
+
+        // First, acquire the buffer on the compute queue (if needed) so that we can run it on the presentation queue next
+        VkBufferMemoryBarrier buffer_barrier;
+        if (rendered_once) {
+            DLOG(auxillary, "Compute acquire");
+            populate_buffer_barrier(
+                buffer_barrier,
+                frames[current_frame],
+                VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+                gpu->queue_info().presentation(), gpu->queue_info().compute()
+            );
+            vkCmdPipelineBarrier(compute_cbs[current_frame], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &buffer_barrier, 0, nullptr);
+        }
 
         // First, we dispatch the compute shader with its resources
-        pipeline.bind(compute_cb);
-        descriptor_set.bind(compute_cb, pipeline.layout());
-        vkCmdDispatch(compute_cb, (width / 32) + 1, (height / 32) + 1, 1);
+        pipeline.bind(compute_cbs[current_frame]);
+        descriptor_set.bind(compute_cbs[current_frame], pipeline.layout());
+        vkCmdDispatch(compute_cbs[current_frame], (width / 32) + 1, (height / 32) + 1, 1);
 
-        // Next, we add a memory barrier
-        VkMemoryBarrier barrier{};
-        barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-        barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-        barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-        vkCmdPipelineBarrier(compute_cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 1, &barrier, 0, nullptr, 0, nullptr);
+        // // Add a memory barrier before we schedule the copy to make sure that the shader is done rendering
+        // VkMemoryBarrier memory_barrier{};
+        // memory_barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+        // memory_barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+        // memory_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        // vkCmdPipelineBarrier(compute_cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 1, &memory_barrier, 0, nullptr, 0, nullptr);
+
+        // Release the buffer on the compute queue, so that we can run it on the presentation queue next
+        DLOG(auxillary, "Compute release");
+        populate_buffer_barrier(
+            buffer_barrier,
+            frames[current_frame],
+            VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+            gpu->queue_info().compute(), gpu->queue_info().presentation()
+        );
+        vkCmdPipelineBarrier(compute_cbs[current_frame], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &buffer_barrier, 0, nullptr);
+
+        // We're done with this commandbuffer
+        compute_cbs[current_frame].end();
+
+
+
+        // Next, create a commandbuffer for the presentation queue to copy the buffer to the resulting image
+        copy_cbs[current_frame].begin();
+
+        // We first grab the buffer of the compute queue, ready to be transferred from
+        DLOG(auxillary, "Present acquire");
+        populate_buffer_barrier(
+            buffer_barrier,
+            frames[current_frame],
+            VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+            this->gpu->queue_info().compute(), this->gpu->queue_info().presentation()
+        );
+        vkCmdPipelineBarrier(copy_cbs[current_frame], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &buffer_barrier, 0, nullptr);
+
+        // With the buffer ready, we change the image to the required layout
+        VkImageMemoryBarrier image_barrier;
+        populate_image_barrier(
+            image_barrier,
+            (*swapchain)[swapchain_index],
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            VK_ACCESS_NONE_KHR, VK_ACCESS_TRANSFER_WRITE_BIT,
+            this->gpu->queue_info().presentation()
+        );
+        vkCmdPipelineBarrier(copy_cbs[current_frame], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &image_barrier);
 
         // Then, we schedule a copy to the swapchain image
         VkBufferImageCopy buffer_image_copy;
         populate_buffer_image_copy(buffer_image_copy, swapchain_extent.width, swapchain_extent.height);
-        vkCmdCopyBufferToImage(compute_cb, frames[current_frame], (*swapchain)[swapchain_index], VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 1, &buffer_image_copy);
+        vkCmdCopyBufferToImage(copy_cbs[current_frame], frames[current_frame], (*swapchain)[swapchain_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &buffer_image_copy);
 
-        // VkImageBlit image_blit{};
-        // image_blit.srcOffsets[0] = VkOffset3D({ 0, 0, 0 });
-        // image_blit.srcOffsets[1] = VkOffset3D({ 0, 0, 0 });
-        // image_blit.srcSubresource = subresource_layers;
-        // image_blit.dstOffsets[0] = VkOffset3D({ 0, 0, 0 });
-        // image_blit.dstOffsets[1] = VkOffset3D({ 0, 0, 0 });
-        // image_blit.dstSubresource = subresource_layers;
-        // vkCmdBlitImage(compute_cb, frames[current_frame], VK_IMAGE_LAYOUT_GENERAL, (*swapchain)[swapchain_index], VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 1, &image_blit, VK_FILTER_LINEAR);
+        // Once that is done, revert the image back to present layout
+        populate_image_barrier(
+            image_barrier,
+            (*swapchain)[swapchain_index],
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT,
+            this->gpu->queue_info().compute(), this->gpu->queue_info().presentation()
+        );
+        vkCmdPipelineBarrier(copy_cbs[current_frame], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &image_barrier);
 
-        // We're done recording
-        compute_cb.end();
+        // Also release the buffer back to the compute queue
+        DLOG(auxillary, "Present release");
+        populate_buffer_barrier(
+            buffer_barrier,
+            frames[current_frame],
+            VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+            this->gpu->queue_info().presentation(), this->gpu->queue_info().compute()
+        );
+        vkCmdPipelineBarrier(copy_cbs[current_frame], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &buffer_barrier, 0, nullptr);
+
+        // Done recording
+        copy_cbs[current_frame].end();
 
 
 
-        // Prepare submitting the command buffer, by adding relevant semaphore to its submit info
-        VkSubmitInfo submit_info = compute_cb.get_submit_info();
+        // Prepare submitting the compute command buffer, by adding relevant semaphore to its submit info
+        VkSubmitInfo submit_info = compute_cbs[current_frame].get_submit_info();
         submit_info.waitSemaphoreCount = 1;
         submit_info.pWaitSemaphores = &image_ready_semaphores[current_frame];
         submit_info.signalSemaphoreCount = 1;
         submit_info.pSignalSemaphores = &render_ready_semaphores[current_frame];
+        VkPipelineStageFlags semaphore_stage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+        submit_info.pWaitDstStageMask = &semaphore_stage;
+
+        // Submit it and don't wait
+        if ((vk_result = vkQueueSubmit(gpu->compute_queue(), 1, &submit_info, VK_NULL_HANDLE)) != VK_SUCCESS) {
+            DLOG(fatal, "Could not submit compute shader to queue: " + vk_error_map[vk_result]);
+        }
+
+
+
+        // Prepare submitting the copy command buffer, by adding relevant semaphore to its submit info
+        submit_info = copy_cbs[current_frame].get_submit_info();
+        submit_info.waitSemaphoreCount = 1;
+        submit_info.pWaitSemaphores = &render_ready_semaphores[current_frame];
+        submit_info.signalSemaphoreCount = 1;
+        submit_info.pSignalSemaphores = &copy_ready_semaphores[current_frame];
+        semaphore_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        submit_info.pWaitDstStageMask = &semaphore_stage;
 
         // Submit it and don't wait
         vkResetFences(*this->gpu, 1, &frame_in_flight_fences[current_frame]);
-        if ((vk_result = vkQueueSubmit(gpu->compute_queue(), 1, &submit_info, frame_in_flight_fences[current_frame])) != VK_SUCCESS) {
-            DLOG(fatal, "Could not submit compute shader to queue: " + vk_error_map[vk_result]);
+        if ((vk_result = vkQueueSubmit(gpu->present_queue(), 1, &submit_info, frame_in_flight_fences[current_frame])) != VK_SUCCESS) {
+            DLOG(fatal, "Could not submit copy queue: " + vk_error_map[vk_result]);
         }
 
 
 
         // Now, present the resulting frame once it's done rendering
         VkPresentInfoKHR present_info;
-        populate_present_info(present_info, *swapchain, swapchain_index, render_ready_semaphores[current_frame]);
+        populate_present_info(present_info, *swapchain, swapchain_index, copy_ready_semaphores[current_frame]);
         
         // Hit it!
         if ((vk_result = vkQueuePresentKHR(gpu->present_queue(), &present_info)) != VK_SUCCESS) {
@@ -486,8 +672,16 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
 
 
 
+        // Cleanup stuff for this pass
+        this->descriptor_pool->deallocate(descriptor_set);
+
+
+
         // Once done, advance to the next frame in flight
         current_frame = (current_frame + 1) % VulkanOnlineRenderer::max_frames_in_flight;
+        if (current_frame == 0) {
+            rendered_once = true;
+        }
     }
     DDEDENT;
 
@@ -503,6 +697,9 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
     for (uint32_t i = 0; i < VulkanOnlineRenderer::max_frames_in_flight; i++) {
         // Destroy the frame in flight fence
         vkDestroyFence(*this->gpu, frame_in_flight_fences[i], nullptr);
+
+        // Destroy the copy ready semaphore
+        vkDestroySemaphore(*this->gpu, copy_ready_semaphores[i], nullptr);
 
         // Destroy the render ready semaphore
         vkDestroySemaphore(*this->gpu, render_ready_semaphores[i], nullptr);
@@ -541,6 +738,9 @@ void RayTracer::swap(VulkanOnlineRenderer& r1, VulkanOnlineRenderer& r2) {
 
     // Swap as VulkanRenderer first
     swap((VulkanRenderer&) r1, (VulkanRenderer&) r2);
+
+    // Swap our own fields
+    swap(r1.present_command_pool, r2.present_command_pool);
 
     // Done
 }
