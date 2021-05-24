@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:30:34
  * Last edited:
- *   23/05/2021, 21:33:46
+ *   24/05/2021, 16:51:02
  * Auto updated?
  *   Yes
  *
@@ -211,6 +211,117 @@ static void populate_fence_info(VkFenceCreateInfo& fence_info) {
 
 
 
+/***** RECORD FUNCTIONS *****/
+/* Records the compute command buffer. */
+void record_compute_cb(CommandBuffer& compute_cb, const GPU& gpu, const Pipeline& pipeline, const DescriptorSet& descriptor_set, const Buffer& frame, const VkExtent2D& swapchain_extent) {
+    DENTER("record_compute_cb");
+
+    // Before we begin, prepare a buffer barrier for acquiring the buffer and stuff
+    VkBufferMemoryBarrier buffer_barrier;
+    
+    // With that set, begin recording the command buffer
+    compute_cb.begin();
+
+    // First, acquire the buffer on the compute queue so that we can run it on the presentation queue next
+    populate_buffer_barrier(
+        buffer_barrier,
+        frame,
+        VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,
+        gpu.queue_info().presentation(), gpu.queue_info().compute()
+    );
+    vkCmdPipelineBarrier(compute_cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &buffer_barrier, 0, nullptr);
+
+    // First, we dispatch the compute shader with its resources
+    pipeline.bind(compute_cb);
+    descriptor_set.bind(compute_cb, pipeline.layout());
+    vkCmdDispatch(compute_cb, (swapchain_extent.width / 32) + 1, (swapchain_extent.height / 32) + 1, 1);
+
+    // // Add a memory barrier before we schedule the copy to make sure that the shader is done rendering
+    // VkMemoryBarrier memory_barrier{};
+    // memory_barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    // memory_barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
+    // memory_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    // vkCmdPipelineBarrier(compute_cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 1, &memory_barrier, 0, nullptr, 0, nullptr);
+
+    // Release the buffer on the compute queue, so that we can run it on the presentation queue next
+    populate_buffer_barrier(
+        buffer_barrier,
+        frame,
+        VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+        gpu.queue_info().compute(), gpu.queue_info().presentation()
+    );
+    vkCmdPipelineBarrier(compute_cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &buffer_barrier, 0, nullptr);
+
+    // We're done with this commandbuffer
+    compute_cb.end();
+
+    DRETURN;
+}
+
+/* Records the copy-the-buffer command buffer. */
+void record_copy_cb(CommandBuffer& copy_cb, const GPU& gpu, const Buffer& frame, VkImage vk_swapchain_image, const VkExtent2D& swapchain_extent) {
+    DENTER("record_copy_cb");
+
+    // Before we begin, prepare structs required throughout the recording
+    VkBufferMemoryBarrier buffer_barrier;
+    VkImageMemoryBarrier image_barrier;
+    VkBufferImageCopy buffer_image_copy;
+
+    // We start recording
+    copy_cb.begin();
+
+    // We first grab the buffer of the compute queue, ready to be transferred from
+    populate_buffer_barrier(
+        buffer_barrier,
+        frame,
+        VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+        gpu.queue_info().compute(), gpu.queue_info().presentation()
+    );
+    vkCmdPipelineBarrier(copy_cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &buffer_barrier, 0, nullptr);
+
+    // With the buffer ready, we change the image to the required layout
+    populate_image_barrier(
+        image_barrier,
+        vk_swapchain_image,
+        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_ACCESS_NONE_KHR, VK_ACCESS_TRANSFER_WRITE_BIT,
+        gpu.queue_info().presentation()
+    );
+    vkCmdPipelineBarrier(copy_cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &image_barrier);
+
+    // Then, we schedule a copy to the swapchain image
+    populate_buffer_image_copy(buffer_image_copy, swapchain_extent.width, swapchain_extent.height);
+    vkCmdCopyBufferToImage(copy_cb, frame, vk_swapchain_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &buffer_image_copy);
+
+    // Once that is done, revert the image back to present layout
+    populate_image_barrier(
+        image_barrier,
+        vk_swapchain_image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT,
+        gpu.queue_info().compute(), gpu.queue_info().presentation()
+    );
+    vkCmdPipelineBarrier(copy_cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &image_barrier);
+
+    // Also release the buffer back to the compute queue
+    populate_buffer_barrier(
+        buffer_barrier,
+        frame,
+        VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+        gpu.queue_info().presentation(), gpu.queue_info().compute()
+    );
+    vkCmdPipelineBarrier(copy_cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &buffer_barrier, 0, nullptr);
+
+    // Done recording, but leave actually submitting to the main render function
+    copy_cb.end();
+
+    DRETURN;
+}
+
+
+
+
+
 /***** VULKANONLINERENDERER CLASS *****/
 /* Constructor for the VulkanOnlineRenderer class, which takes nothing to be compatible. Note that it does not rely on the parent constructor, since we want to start the vulkan instance & GPU differently. */
 VulkanOnlineRenderer::VulkanOnlineRenderer() :
@@ -251,15 +362,15 @@ VulkanOnlineRenderer::VulkanOnlineRenderer() :
     this->descriptor_pool = new DescriptorPool(
         *this->gpu,
         Tools::Array<std::tuple<VkDescriptorType, uint32_t>>({
-            std::make_tuple(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
-            std::make_tuple(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3)
+            std::make_tuple(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1 * VulkanOnlineRenderer::max_frames_in_flight),
+            std::make_tuple(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3 * VulkanOnlineRenderer::max_frames_in_flight)
             // std::make_tuple(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2),
             // std::make_tuple(VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1)
         }),
         VulkanOnlineRenderer::max_descriptor_sets
     );
 
-    this->compute_command_pool = new CommandPool(*this->gpu, this->gpu->queue_info().compute(), VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    this->compute_command_pool = new CommandPool(*this->gpu, this->gpu->queue_info().compute());
     this->memory_command_pool = new CommandPool(*this->gpu, this->gpu->queue_info().memory(), VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
 
     // Initialize the descriptor set layout for the raytrace call
@@ -341,7 +452,7 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
     this->gpu->check_present(glfw_surface);
 
     // With this, allocate a compute queue for the newly found presentation queue
-    CommandPool present_command_pool(*this->gpu, this->gpu->queue_info().presentation(), VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
+    CommandPool present_command_pool(*this->gpu, this->gpu->queue_info().presentation());
 
 
 
@@ -351,15 +462,19 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
 
 
     /* Step 3: Allocate buffers. */
-    DLOG(info, "Preparing buffers...");
+    DLOG(info, "Preparing camera buffers...");
 
     // First, allocate the camera buffer and a matching staging buffer
     size_t camera_size = sizeof(GCameraData);
     Buffer camera = this->device_memory_pool->allocate_buffer(camera_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     Buffer staging = this->stage_memory_pool->allocate_buffer(camera_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
+
+
+    /* Step 4: Prepare the frame output buffers. */
+    DLOG(info, "Preparing output buffers...");
+
     // Allocate the images to output to
-    // Tools::Array<Image> frames(VulkanOnlineRenderer::max_frames_in_flight);
     Tools::Array<Buffer> frames(VulkanOnlineRenderer::max_frames_in_flight);
     for (uint32_t i = 0; i < VulkanOnlineRenderer::max_frames_in_flight; i++) {
         // Allocate it
@@ -367,27 +482,6 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
             swapchain->extent().width * swapchain->extent().height * sizeof(glm::vec4),
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
         ));
-        // frames.push_back(this->device_memory_pool->allocate_image(
-        //     swapchain->extent().width, swapchain->extent().height,
-        //     swapchain->format(),
-        //     VK_IMAGE_LAYOUT_UNDEFINED,
-        //     VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
-        // ));
-    }
-
-    // Fetch the internal faces & vertex handles as buffers
-    Buffer vk_entity_faces = this->device_memory_pool->deref_buffer(this->vk_entity_faces);
-    Buffer vk_entity_vertices = this->device_memory_pool->deref_buffer(this->vk_entity_vertices);
-
-    // Fetch the internal command buffer handle for staging
-    CommandBuffer staging_cb = (*this->memory_command_pool)[this->staging_cb_h];
-
-    // Prepare the list of compute command buffers for each frame
-    Tools::Array<CommandBuffer> compute_cbs(VulkanOnlineRenderer::max_frames_in_flight);
-    Tools::Array<CommandBuffer> copy_cbs(VulkanOnlineRenderer::max_frames_in_flight);
-    for (uint32_t i = 0; i < VulkanOnlineRenderer::max_frames_in_flight; i++) {
-        compute_cbs.push_back(this->compute_command_pool->allocate());
-        copy_cbs.push_back(present_command_pool.allocate());
     }
 
 
@@ -427,6 +521,43 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
         Tools::Array<DescriptorSetLayout>({ *this->raytrace_dsl }),
         std::unordered_map<uint32_t, std::tuple<uint32_t, void*>>({ { 0, std::make_tuple(sizeof(uint32_t), (void*) &swapchain_extent.width) }, { 1, std::make_tuple(sizeof(uint32_t), (void*) &swapchain_extent.height) } })
     );
+
+
+
+    /* Step 6: Prepare the descriptor sets. */
+    DLOG(info, "Preparing descriptor sets...");
+
+    // Fetch the internal faces & vertex handles as buffers
+    Buffer vk_entity_faces = this->device_memory_pool->deref_buffer(this->vk_entity_faces);
+    Buffer vk_entity_vertices = this->device_memory_pool->deref_buffer(this->vk_entity_vertices);
+
+    // Prepare the descriptor set, with all bindings
+    Tools::Array<DescriptorSet> descriptor_sets(VulkanOnlineRenderer::max_frames_in_flight);
+    for (size_t i = 0; i < VulkanOnlineRenderer::max_frames_in_flight; i++) {
+        descriptor_sets.push_back(this->descriptor_pool->allocate(*this->raytrace_dsl));
+        
+        // We can also bind the data to the buffer already
+        descriptor_sets[i].set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0, Tools::Array<Buffer>({ frames[i] }));
+        descriptor_sets[i].set(*this->gpu, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, Tools::Array<Buffer>({ camera }));
+        descriptor_sets[i].set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, Tools::Array<Buffer>({ vk_entity_faces }));
+        descriptor_sets[i].set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, Tools::Array<Buffer>({ vk_entity_vertices }));
+    }
+
+
+
+    /* Step 6: Prepare the command buffers. */
+    DLOG(info, "Preparing command buffers...");
+
+    // Prepare the list of compute command buffers for each frame
+    Tools::Array<CommandBuffer> compute_cbs(VulkanOnlineRenderer::max_frames_in_flight);
+    Tools::Array<CommandBuffer> copy_cbs(VulkanOnlineRenderer::max_frames_in_flight);
+    for (uint32_t i = 0; i < VulkanOnlineRenderer::max_frames_in_flight; i++) {
+        compute_cbs.push_back(this->compute_command_pool->allocate());
+        copy_cbs.push_back(present_command_pool.allocate());
+
+        // Record the compute buffer already since that isn't swapchain dependent
+        record_compute_cb(compute_cbs[i], *this->gpu, pipeline, descriptor_sets[i], frames[i], swapchain_extent);
+    }
 
     
 
@@ -483,6 +614,14 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
     for (uint32_t i = 0; i < swapchain->size(); i++) {
         image_in_flight_fences[i] = VK_NULL_HANDLE;
     }
+
+
+
+    /* Step 6.5: Get some references. */
+    DLOG(info, "Final preparations...");
+
+    // Fetch the internal command buffer handle for staging
+    CommandBuffer staging_cb = (*this->memory_command_pool)[this->staging_cb_h];
     
 
 
@@ -521,110 +660,12 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
         GCameraData camera_data({ cam.origin, cam.horizontal, cam.vertical, cam.lower_left_corner });
         camera.set(*this->gpu, staging, staging_cb, this->gpu->memory_queue(), (void*) &camera_data, camera_size);
 
-        // Prepare the descriptor set, with all bindings
-        DescriptorSet descriptor_set = this->descriptor_pool->allocate(*this->raytrace_dsl);
-        // descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 0, Tools::Array<VkImageView>({ image_views[current_frame] }));
-        descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 0, Tools::Array<Buffer>({ frames[current_frame] }));
-        descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, Tools::Array<Buffer>({ camera }));
-        descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 2, Tools::Array<Buffer>({ vk_entity_faces }));
-        descriptor_set.set(*this->gpu, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 3, Tools::Array<Buffer>({ vk_entity_vertices }));
+        
 
-
-
-        // With that all set, begin recording the command buffer
-        compute_cbs[current_frame].begin();
-
-        // First, acquire the buffer on the compute queue (if needed) so that we can run it on the presentation queue next
-        VkBufferMemoryBarrier buffer_barrier;
-        if (rendered_once) {
-            DLOG(auxillary, "Compute acquire");
-            populate_buffer_barrier(
-                buffer_barrier,
-                frames[current_frame],
-                VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_WRITE_BIT,
-                gpu->queue_info().presentation(), gpu->queue_info().compute()
-            );
-            vkCmdPipelineBarrier(compute_cbs[current_frame], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &buffer_barrier, 0, nullptr);
-        }
-
-        // First, we dispatch the compute shader with its resources
-        pipeline.bind(compute_cbs[current_frame]);
-        descriptor_set.bind(compute_cbs[current_frame], pipeline.layout());
-        vkCmdDispatch(compute_cbs[current_frame], (width / 32) + 1, (height / 32) + 1, 1);
-
-        // // Add a memory barrier before we schedule the copy to make sure that the shader is done rendering
-        // VkMemoryBarrier memory_barrier{};
-        // memory_barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-        // memory_barrier.srcAccessMask = VK_ACCESS_MEMORY_WRITE_BIT;
-        // memory_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-        // vkCmdPipelineBarrier(compute_cb, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 1, &memory_barrier, 0, nullptr, 0, nullptr);
-
-        // Release the buffer on the compute queue, so that we can run it on the presentation queue next
-        DLOG(auxillary, "Compute release");
-        populate_buffer_barrier(
-            buffer_barrier,
-            frames[current_frame],
-            VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
-            gpu->queue_info().compute(), gpu->queue_info().presentation()
-        );
-        vkCmdPipelineBarrier(compute_cbs[current_frame], VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &buffer_barrier, 0, nullptr);
-
-        // We're done with this commandbuffer
-        compute_cbs[current_frame].end();
-
-
-
-        // Next, create a commandbuffer for the presentation queue to copy the buffer to the resulting image
-        copy_cbs[current_frame].begin();
-
-        // We first grab the buffer of the compute queue, ready to be transferred from
-        DLOG(auxillary, "Present acquire");
-        populate_buffer_barrier(
-            buffer_barrier,
-            frames[current_frame],
-            VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT,
-            this->gpu->queue_info().compute(), this->gpu->queue_info().presentation()
-        );
-        vkCmdPipelineBarrier(copy_cbs[current_frame], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &buffer_barrier, 0, nullptr);
-
-        // With the buffer ready, we change the image to the required layout
-        VkImageMemoryBarrier image_barrier;
-        populate_image_barrier(
-            image_barrier,
-            (*swapchain)[swapchain_index],
-            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            VK_ACCESS_NONE_KHR, VK_ACCESS_TRANSFER_WRITE_BIT,
-            this->gpu->queue_info().presentation()
-        );
-        vkCmdPipelineBarrier(copy_cbs[current_frame], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &image_barrier);
-
-        // Then, we schedule a copy to the swapchain image
-        VkBufferImageCopy buffer_image_copy;
-        populate_buffer_image_copy(buffer_image_copy, swapchain_extent.width, swapchain_extent.height);
-        vkCmdCopyBufferToImage(copy_cbs[current_frame], frames[current_frame], (*swapchain)[swapchain_index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &buffer_image_copy);
-
-        // Once that is done, revert the image back to present layout
-        populate_image_barrier(
-            image_barrier,
-            (*swapchain)[swapchain_index],
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_MEMORY_READ_BIT,
-            this->gpu->queue_info().compute(), this->gpu->queue_info().presentation()
-        );
-        vkCmdPipelineBarrier(copy_cbs[current_frame], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &image_barrier);
-
-        // Also release the buffer back to the compute queue
-        DLOG(auxillary, "Present release");
-        populate_buffer_barrier(
-            buffer_barrier,
-            frames[current_frame],
-            VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_TRANSFER_READ_BIT,
-            this->gpu->queue_info().presentation(), this->gpu->queue_info().compute()
-        );
-        vkCmdPipelineBarrier(copy_cbs[current_frame], VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 1, &buffer_barrier, 0, nullptr);
-
-        // Done recording
-        copy_cbs[current_frame].end();
+        // Record a new copy buffer for this frame
+        present_command_pool.deallocate(copy_cbs[current_frame]);
+        copy_cbs[current_frame] = present_command_pool.allocate();
+        record_copy_cb(copy_cbs[current_frame], *this->gpu, frames[current_frame], (*swapchain)[swapchain_index], swapchain_extent);
 
 
 
@@ -669,11 +710,6 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
         if ((vk_result = vkQueuePresentKHR(gpu->present_queue(), &present_info)) != VK_SUCCESS) {
             DLOG(fatal, "Failed to present frame " + std::to_string(current_frame) + " to presentation queue: " + vk_error_map[vk_result]);
         }
-
-
-
-        // Cleanup stuff for this pass
-        this->descriptor_pool->deallocate(descriptor_set);
 
 
 

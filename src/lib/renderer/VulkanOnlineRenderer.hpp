@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:30:37
  * Last edited:
- *   23/05/2021, 20:45:03
+ *   24/05/2021, 16:36:37
  * Auto updated?
  *   Yes
  *
@@ -35,7 +35,7 @@ namespace RayTracer {
         /* Constant that determines the pool size of the transfer memory. */
         static const constexpr VkDeviceSize stage_memory_size = 1024 * 1024 * 1024;
         /* The maximum number of descriptor sets in the desriptor pool. */
-        static const constexpr uint32_t max_descriptor_sets = 1;
+        static const constexpr uint32_t max_descriptor_sets = max_frames_in_flight;
 
     private:
         /* Extra command pool for buffers on the presentation queue. */
