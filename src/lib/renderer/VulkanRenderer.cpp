@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   25/05/2021, 16:57:04
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -18,7 +18,7 @@
 #endif
 
 #include <functional>
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #include "compute/Pipeline.hpp"
 #include "compute/ErrorCodes.hpp"
@@ -211,8 +211,8 @@ void VulkanRenderer::transfer_entity(const Compute::Buffer& vk_faces_buffer, uin
     DENTER("VulkanRenderer::transfer_entity");
 
     // First, allocate a staging buffer large enough to transfer both the faces and the vertices
-    uint32_t faces_size = faces_buffer.size() * sizeof(GFace);
-    uint32_t vertex_size = vertex_buffer.size() * sizeof(glm::vec4);
+    uint32_t faces_size = (uint32_t) (faces_buffer.size() * sizeof(GFace));
+    uint32_t vertex_size = (uint32_t) (vertex_buffer.size() * sizeof(glm::vec4));
     uint32_t staging_size = std::max({ faces_size, vertex_size });
     Buffer staging = suite.stage_memory_pool.allocate_buffer(staging_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
@@ -472,7 +472,7 @@ void VulkanRenderer::render(Camera& cam) const {
         *this->gpu,
         Shader(*this->gpu, Tools::get_executable_path() + "/shaders/raytracer_v3.spv"),
         Tools::Array<DescriptorSetLayout>({ *this->raytrace_dsl }),
-        std::unordered_map<uint32_t, std::tuple<uint32_t, void*>>({ { 0, std::make_tuple(sizeof(uint32_t), (void*) &width) }, { 1, std::make_tuple(sizeof(uint32_t), (void*) &height) } })
+        std::unordered_map<uint32_t, std::tuple<uint32_t, void*>>({ { 0, std::make_tuple((uint32_t) sizeof(uint32_t), (void*) &width) }, { 1, std::make_tuple((uint32_t) sizeof(uint32_t), (void*) &height) } })
     );
     DDEDENT;
     

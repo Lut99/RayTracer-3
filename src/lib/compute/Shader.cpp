@@ -13,7 +13,7 @@
  *   for use in pipelines.
 **/
 
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 #include <vector>
 #include <fstream>
 #include <cstring>

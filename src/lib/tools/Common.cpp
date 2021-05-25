@@ -4,7 +4,7 @@
  * Created:
  *   02/05/2021, 17:12:29
  * Last edited:
- *   21/05/2021, 15:23:51
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -20,7 +20,7 @@
 #include <linux/limits.h>
 #endif
 #include <sstream>
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #include "Common.hpp"
 
@@ -38,17 +38,18 @@ std::string Tools::get_executable_path() {
     /* For Windows machiens */
 
     // First, get the executable name
-    WCHAR path[MAX_PATH];
-    GetModuleFileNameW(NULL, path, MAX_PATH);
+    char path[MAX_PATH];
+    GetModuleFileName(NULL, path, MAX_PATH);
     
-    // Next, strip the path off it using the correct windows' version's counterpart
-    #if (NTDDI_VERSION >= NTDDI_WIN8)
-    PathCchRemoveFileSpec(path, MAX_PATH);
-    #else
-    PathRemoveFileSpec(path);
-    #endif
+    // Strip the executable from it to only get the directory
+    for (int i = MAX_PATH - 1; i >= 0; i--) {
+        if (path[i] == '\\' || path[i] == '/') {
+            path[i] = '\0';
+            break;
+        }
+    }
 
-    // Done, return
+    // Prepare the converting of unicode to ascii and then return the converted value
     DRETURN path;
 
     #else

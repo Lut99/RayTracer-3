@@ -4,7 +4,7 @@
  * Created:
  *   28/04/2021, 14:28:32
  * Last edited:
- *   25/05/2021, 16:55:13
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -19,7 +19,7 @@
 #include <cstring>
 #include <cerrno>
 #include <limits>
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #include "LodePNG.hpp"
 

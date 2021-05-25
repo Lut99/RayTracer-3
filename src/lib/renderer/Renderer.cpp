@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:17:35
  * Last edited:
- *   19/05/2021, 17:59:17
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -17,7 +17,7 @@
 **/
 
 #include <unordered_map>
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #include "Renderer.hpp"
 

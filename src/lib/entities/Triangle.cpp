@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 13:35:10
  * Last edited:
- *   19/05/2021, 17:28:24
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -13,7 +13,7 @@
 **/
 
 #include <cmath>
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #include "Triangle.hpp"
 

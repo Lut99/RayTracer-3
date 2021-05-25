@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:40:07
  * Last edited:
- *   25/05/2021, 16:07:55
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -15,7 +15,7 @@
 **/
 
 #include <limits>
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #include "Formats.hpp"
 #include "ErrorCodes.hpp"

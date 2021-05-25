@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 15:33:41
  * Last edited:
- *   28/04/2021, 20:26:00
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -13,7 +13,7 @@
  *   a single type of buffer.
 **/
 
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #include "ErrorCodes.hpp"
 

@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   25/05/2021, 16:20:25
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -16,7 +16,7 @@
 #include <iostream>
 #include <cstring>
 #include <limits>
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #include "renderer/Renderer.hpp"
 
@@ -168,10 +168,10 @@ int parse_cli(CLIOptions& options, int argc, const char** argv) {
                         DRETURN -1;
                     }
                     options.width = (uint32_t) ivalue;
-                } catch (std::invalid_argument& e) {
+                } catch (std::invalid_argument&) {
                     cerr << "Invalid width '" + value + "'";
                     DRETURN -1;
-                } catch (std::out_of_range& e) {
+                } catch (std::out_of_range&) {
                     cerr << "Width too large '" + value + "'";
                     DRETURN -1;
                 }
@@ -197,10 +197,10 @@ int parse_cli(CLIOptions& options, int argc, const char** argv) {
                         DRETURN -1;
                     }
                     options.height = (uint32_t) ivalue;
-                } catch (std::invalid_argument& e) {
+                } catch (std::invalid_argument&) {
                     cerr << "Invalid height '" + value + "'";
                     DRETURN -1;
-                } catch (std::out_of_range& e) {
+                } catch (std::out_of_range&) {
                     cerr << "Height too large '" + value + "'";
                     DRETURN -1;
                 }
@@ -269,7 +269,7 @@ int main(int argc, const char** argv) {
 
         // Initialize the camera object
         Camera cam;
-        cam.update(options.width, options.height, 2.0, ((float) options.width / (float) options.height) * 2.0, 2.0);
+        cam.update(options.width, options.height, 2.0, ((float) options.width / (float) options.height) * 2.0f, 2.0f);
         
         
 
@@ -278,8 +278,8 @@ int main(int argc, const char** argv) {
         // Tools::Array<ECS::RenderEntity*> entities({ ECS::create_sphere({ 0.0, 0.0, -3.0 }, 1.0, 8, 8, { 1.0, 0.0, 0.0 }) });
         // Tools::Array<ECS::RenderEntity*> entities({ ECS::create_triangle({ 1.0, 0.0, -3.0 }, { -1.0, 0.0, -3.0 }, { 0.0, 1.0, -3.0 }, { 1.0, 0.0, 0.0 }) });
         Tools::Array<ECS::RenderEntity*> entities({
-            ECS::create_object("bin/objects/teddy.obj", {0.0, 0.0, -3.0}, 1.0 / 17.0, {1.0, 0.0, 0.0}),
-            ECS::create_sphere({ -2.0, 0.0, -5.0 }, 1.0, 8, 8, { 0.0, 0.0, 1.0 })
+            ECS::create_object("bin/objects/teddy.obj", {0.0f, 0.0f, -3.0f}, 1.0f / 17.0f, {1.0f, 0.0f, 0.0f}),
+            ECS::create_sphere({ -2.0f, 0.0f, -5.0f }, 1.0f, 8, 8, { 0.0f, 0.0f, 1.0f })
         });
         renderer->prerender(entities);
         renderer->render(cam);
@@ -302,7 +302,7 @@ int main(int argc, const char** argv) {
         // Dope, done
         DLOG(auxillary, "");
         delete renderer;
-    } catch (CppDebugger::Fatal& e) {
+    } catch (CppDebugger::Fatal&) {
         // Simply quit
         DRETURN -1;
     }

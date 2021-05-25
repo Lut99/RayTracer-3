@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 15:25:06
  * Last edited:
- *   21/05/2021, 15:31:17
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -13,7 +13,7 @@
  *   frame sequentially on the CPU, no fancy strings attached.
 **/
 
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #include "entities/Triangle.hpp"
 #include "entities/Sphere.hpp"

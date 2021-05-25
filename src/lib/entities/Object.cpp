@@ -4,7 +4,7 @@
  * Created:
  *   06/05/2021, 16:51:56
  * Last edited:
- *   21/05/2021, 15:29:11
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -18,7 +18,7 @@
 #include <sstream>
 #include <cstring>
 #include <cerrno>
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #include "Object.hpp"
 
@@ -80,7 +80,13 @@ Object* ECS::create_object(const std::string& file_path, const glm::vec3& center
     // Try to open a file handle
     std::ifstream h(file_path);
     if (!h.is_open()) {
-        DLOG(fatal, "Could not open file: " + std::string(strerror(errno)));
+        #ifdef _WIN32
+        char buffer[BUFSIZ];
+        strerror_s(buffer, BUFSIZ, errno);
+        #else
+        char* buffer = strerror(errno);
+        #endif
+        DLOG(fatal, "Could not open file: " + std::string(buffer));
     }
 
     // Start looping through it
@@ -129,7 +135,13 @@ void ECS::cpu_pre_render_object(Tools::Array<GFace>& faces_buffer, Tools::Array<
     // Try to open a file handle
     std::ifstream h(obj->file_path);
     if (!h.is_open()) {
-        DLOG(fatal, "Could not open file: " + std::string(strerror(errno)));
+        #ifdef _WIN32
+        char buffer[BUFSIZ];
+        strerror_s(buffer, BUFSIZ, errno);
+        #else
+        char* buffer = strerror(errno);
+        #endif
+        DLOG(fatal, "Could not open file: " + std::string(buffer));
     }
 
     // Start looping through it

@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:38:48
  * Last edited:
- *   21/05/2021, 18:07:29
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -14,7 +14,7 @@
  *   piece of memory should be accessed on the GPU.
 **/
 
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #include "ErrorCodes.hpp"
 
@@ -387,7 +387,7 @@ DescriptorPool::~DescriptorPool() {
     VkResult vk_result;
     if (this->vk_descriptor_sets.size() > 0) {
         DLOG(info, "Deallocating descriptor sets...");
-        if ((vk_result = vkFreeDescriptorSets(this->gpu, this->vk_descriptor_pool, this->vk_descriptor_sets.size(), this->vk_descriptor_sets.rdata())) != VK_SUCCESS) {
+        if ((vk_result = vkFreeDescriptorSets(this->gpu, this->vk_descriptor_pool, (uint32_t) this->vk_descriptor_sets.size(), this->vk_descriptor_sets.rdata())) != VK_SUCCESS) {
             DLOG(nonfatal, "Could not deallocate descriptor sets: " + vk_error_map[vk_result]);
         }
     }

@@ -15,7 +15,6 @@ ENDIF()
 # Get the VULKAN, GLM & CppDebugger library
 find_package(Vulkan REQUIRED)
 find_package(glfw3 3.3 REQUIRED)
-find_package(CppDebugger REQUIRED)
 
 # Specify the C++-standard to use
 set(CMAKE_CXX_STANDARD 17)
@@ -33,9 +32,15 @@ if(RENDERER_BACKEND MATCHES "^VulkanOnline$")
 set(FLAGS "${FLAGS} -DENABLE_ONLINE")
 endif()
 
-# Add extra GCC flags needed
+# Set the Wall Wextra flags
+set(WARNING_FLAGS "-Wall -Wextra")
+if(WIN32)
+set(WARNING_FLAGS "")
+endif()
+
+# Add extra flags needed
 message("Extra flags: '${FLAGS}'")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra ${FLAGS}")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${WARNING_FLAGS} ${FLAGS}")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_DEBUG} ${FLAGS}")
 
 # Define all include directories
@@ -64,8 +69,7 @@ target_include_directories(raytracer PUBLIC "${INCLUDE_DIRS}")
 target_link_libraries(raytracer PUBLIC
                       ${EXTRA_LIBS}
                       ${Vulkan_LIBRARIES}
-                      glfw
-                      cppdbg)
+                      glfw)
 
 
 

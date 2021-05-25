@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:30:34
  * Last edited:
- *   21/05/2021, 17:09:53
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -17,7 +17,7 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #include "compute/Pipeline.hpp"
 #include "compute/Swapchain.hpp"

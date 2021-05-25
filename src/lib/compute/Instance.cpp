@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 14:03:33
  * Last edited:
- *   03/05/2021, 13:33:26
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -13,7 +13,7 @@
  *   manages the debugger.
 **/
 
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #include "ErrorCodes.hpp"
 

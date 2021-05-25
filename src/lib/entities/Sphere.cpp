@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 12:45:50
  * Last edited:
- *   21/05/2021, 15:15:18
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -14,8 +14,9 @@
 
 // #define ENABLE_VULKAN
 
+#define _USE_MATH_DEFINES
 #include <cmath>
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #ifdef ENABLE_VULKAN
 #include "renderer/Vertex.hpp"
@@ -48,9 +49,9 @@ struct SphereData {
     /* The radius of the sphere. */
     alignas(4)  float radius;
     /* The number of meridians in the sphere (i.e., vertical lines). */
-    alignas(4)  uint n_meridians;
+    alignas(4)  uint32_t n_meridians;
     /* The number of parallels in the sphere (i.e., horizontal lines). */
-    alignas(4)  uint n_parallels;
+    alignas(4)  uint32_t n_parallels;
     /* The color of the sphere. */
     alignas(16) glm::vec3 color;
 };
@@ -144,9 +145,9 @@ void ECS::cpu_pre_render_sphere(Tools::Array<GFace>& faces_buffer, Tools::Array<
                 uint32_t p3 = 1 + x;
 
                 // Compute the matching points
-                glm::vec3 v1 = compute_point(0, 0, sphere);
-                glm::vec3 v2 = compute_point(x_m1, y, sphere);
-                glm::vec3 v3 = compute_point(x, y, sphere);
+                glm::vec3 v1 = compute_point(0.0, 0.0, sphere);
+                glm::vec3 v2 = compute_point((float) x_m1, (float) y, sphere);
+                glm::vec3 v3 = compute_point((float) x, (float) y, sphere);
 
                 // Compute the normal for these fellas
                 glm::vec3 n = glm::normalize(glm::cross(v3 - v1, v2 - v1));
@@ -180,10 +181,10 @@ void ECS::cpu_pre_render_sphere(Tools::Array<GFace>& faces_buffer, Tools::Array<
                 uint32_t p4 = 1 + (y - 1) * max_x + x;
                 
                 // Compute the matching points
-                glm::vec3 v1 = compute_point(x_m1, y_m1, sphere);
-                glm::vec3 v2 = compute_point(x, y_m1, sphere);
-                glm::vec3 v3 = compute_point(x_m1, y, sphere);
-                glm::vec3 v4 = compute_point(x, y, sphere);
+                glm::vec3 v1 = compute_point((float) x_m1, (float) y_m1, sphere);
+                glm::vec3 v2 = compute_point((float) x, (float) y_m1, sphere);
+                glm::vec3 v3 = compute_point((float) x_m1, (float) y, sphere);
+                glm::vec3 v4 = compute_point((float) x, (float) y, sphere);
 
                 // Compute the two normals for the two vertices
                 glm::vec3 n1 = glm::normalize(glm::cross(v4 - v1, v3 - v1));
@@ -237,9 +238,9 @@ void ECS::cpu_pre_render_sphere(Tools::Array<GFace>& faces_buffer, Tools::Array<
                 uint32_t p3 = 1 + (y_m1 - 1) * max_x + x;
                 
                 // Compute the matching points
-                glm::vec3 v1 = compute_point(0, y, sphere);
-                glm::vec3 v2 = compute_point(x_m1, y_m1, sphere);
-                glm::vec3 v3 = compute_point(x, y_m1, sphere);
+                glm::vec3 v1 = compute_point(0, (float) y, sphere);
+                glm::vec3 v2 = compute_point((float) x_m1, (float) y_m1, sphere);
+                glm::vec3 v3 = compute_point((float) x, (float) y_m1, sphere);
 
                 // Compute the normal for these fellas
                 glm::vec3 n = glm::normalize(glm::cross(v3 - v1, v2 - v1));
@@ -418,7 +419,7 @@ void ECS::gpu_pre_render_sphere(const Compute::Buffer& faces_buffer, uint32_t fa
             Shader(gpu.gpu, Tools::get_executable_path() + "/shaders/pre_render_sphere_v2_vertices.spv"),
             Tools::Array<DescriptorSetLayout>({ layout }),
             std::unordered_map<uint32_t, std::tuple<uint32_t, void*>>({
-                { 0, std::make_tuple(sizeof(uint32_t), (void*) &vertex_offset) }
+                { 0, std::make_tuple((uint32_t) sizeof(uint32_t), (void*) &vertex_offset) }
             })
         );
         Pipeline pipeline_faces(
@@ -426,8 +427,8 @@ void ECS::gpu_pre_render_sphere(const Compute::Buffer& faces_buffer, uint32_t fa
             Shader(gpu.gpu, Tools::get_executable_path() + "/shaders/pre_render_sphere_v2_faces.spv"),
             Tools::Array<DescriptorSetLayout>({ layout }),
             std::unordered_map<uint32_t, std::tuple<uint32_t, void*>>({
-                { 0, std::make_tuple(sizeof(uint32_t), (void*) &faces_offset) },
-                { 1, std::make_tuple(sizeof(uint32_t), (void*) &vertex_offset) }
+                { 0, std::make_tuple((uint32_t) sizeof(uint32_t), (void*) &faces_offset) },
+                { 1, std::make_tuple((uint32_t) sizeof(uint32_t), (void*) &vertex_offset) }
             })
         );
 

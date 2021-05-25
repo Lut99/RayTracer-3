@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:30:34
  * Last edited:
- *   25/05/2021, 17:03:40
+ *   25/05/2021, 17:23:26
  * Auto updated?
  *   Yes
  *
@@ -19,7 +19,7 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-#include <CppDebugger.hpp>
+#include "debugger/CppDebugger.hpp"
 
 #include "compute/Pipeline.hpp"
 #include "compute/Swapchain.hpp"
@@ -286,7 +286,7 @@ void record_copy_cb(CommandBuffer& copy_cb, const GPU& gpu, const Buffer& frame,
         image_barrier,
         vk_swapchain_image,
         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_ACCESS_NONE_KHR, VK_ACCESS_TRANSFER_WRITE_BIT,
+        VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
         gpu.queue_info().presentation()
     );
     vkCmdPipelineBarrier(copy_cb, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_DEPENDENCY_DEVICE_GROUP_BIT, 0, nullptr, 0, nullptr, 1, &image_barrier);
@@ -522,7 +522,7 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
         *this->gpu,
         Shader(*this->gpu, Tools::get_executable_path() + "/shaders/raytracer_v3.spv"),
         Tools::Array<DescriptorSetLayout>({ *this->raytrace_dsl }),
-        std::unordered_map<uint32_t, std::tuple<uint32_t, void*>>({ { 0, std::make_tuple(sizeof(uint32_t), (void*) &swapchain_extent.width) }, { 1, std::make_tuple(sizeof(uint32_t), (void*) &swapchain_extent.height) } })
+        std::unordered_map<uint32_t, std::tuple<uint32_t, void*>>({ { 0, std::make_tuple((uint32_t) sizeof(uint32_t), (void*) &swapchain_extent.width) }, { 1, std::make_tuple((uint32_t) sizeof(uint32_t), (void*) &swapchain_extent.height) } })
     );
 
 
@@ -662,7 +662,7 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
 
         // Then, prepare a new frame by populatin the CPU camera buffer
         GCameraData camera_data({ cam.origin, cam.horizontal, cam.vertical, cam.lower_left_corner });
-        camera.set(*this->gpu, staging, staging_cb, this->gpu->memory_queue(), (void*) &camera_data, camera_size);
+        camera.set(*this->gpu, staging, staging_cb, this->gpu->memory_queue(), (void*) &camera_data, (uint32_t) camera_size);
 
         
 
