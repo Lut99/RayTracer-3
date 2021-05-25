@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:30:34
  * Last edited:
- *   25/05/2021, 18:14:13
+ *   25/05/2021, 20:23:02
  * Auto updated?
  *   Yes
  *
@@ -633,7 +633,7 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
     DINDENT;
     uint32_t current_frame = 0;
     unsigned int fps_count = 0;
-    std::chrono::time_point last_fps = std::chrono::system_clock::now();
+    std::chrono::system_clock::time_point last_fps = chrono::system_clock::now();
     while (!glfwWindowShouldClose(glfw_window)) {
         // Let's handle the window events
         glfwPollEvents();
