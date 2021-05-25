@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 15:25:06
  * Last edited:
- *   25/05/2021, 18:14:13
+ *   25/05/2021, 20:16:38
  * Auto updated?
  *   Yes
  *
@@ -293,7 +293,8 @@ void SequentialRenderer::render(Camera& camera) const {
             glm::vec3 ray = camera.lower_left_corner + u * camera.horizontal + v * camera.vertical - camera.origin;
 
             // Compute the ray's color and store it as a vector
-            camera.get_frame().d()[y * width + x] = ray_color(this->entity_faces, this->entity_vertices, camera.origin, ray);
+            glm::vec3 result = ray_color(this->entity_faces, this->entity_vertices, camera.origin, ray);
+            camera.get_frame().d()[y * width + x] = glm::packUnorm4x8(glm::vec4(1.0, result.z, result.y, result.x));
             (void) ray_dot;
 
             if (i % 1000 == 0) { DLOG(info, "Rendered ray " + std::to_string(i) + "/" + std::to_string(width * height)); }
