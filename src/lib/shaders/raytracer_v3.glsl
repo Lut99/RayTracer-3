@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 13:59:41
  * Last edited:
- *   25/05/2021, 16:48:41
+ *   25/05/2021, 20:30:52
  * Auto updated?
  *   Yes
  *
@@ -201,6 +201,7 @@ void main() {
         // Compute the ray's color and store it as a vector
         // frame.pixels[y * width + x] = ray_color(camera.origin, ray);
         frame.pixels[y * width + x] = packUnorm4x8(vec4(ray_color(camera.origin, ray), 1.0).zyxw);
+        // frame.pixels[y * width + x] = gl_WorkGroupID.x;
 
         // if (y * width + x == 0) {
         //     // Return the number of vertices for comparison purposes
