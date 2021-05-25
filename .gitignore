@@ -30,9 +30,11 @@
 *.exe
 *.out
 *.app
+*
+!/**/
+!*.*
 
 # Do not include build folders
-bin/*
 build/*
 
 # Do not copy vscode stuff

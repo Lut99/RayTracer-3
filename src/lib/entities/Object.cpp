@@ -4,7 +4,7 @@
  * Created:
  *   06/05/2021, 16:51:56
  * Last edited:
- *   25/05/2021, 17:23:26
+ *   25/05/2021, 18:14:13
  * Auto updated?
  *   Yes
  *
@@ -18,7 +18,7 @@
 #include <sstream>
 #include <cstring>
 #include <cerrno>
-#include "debugger/CppDebugger.hpp"
+#include <CppDebugger.hpp>
 
 #include "Object.hpp"
 

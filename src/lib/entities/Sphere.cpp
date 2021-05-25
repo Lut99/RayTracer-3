@@ -4,7 +4,7 @@
  * Created:
  *   01/05/2021, 12:45:50
  * Last edited:
- *   25/05/2021, 17:23:26
+ *   25/05/2021, 18:14:13
  * Auto updated?
  *   Yes
  *
@@ -16,7 +16,7 @@
 
 #define _USE_MATH_DEFINES
 #include <cmath>
-#include "debugger/CppDebugger.hpp"
+#include <CppDebugger.hpp>
 
 #ifdef ENABLE_VULKAN
 #include "renderer/Vertex.hpp"

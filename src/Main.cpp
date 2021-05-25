@@ -4,7 +4,7 @@
  * Created:
  *   08/04/2021, 13:20:40
  * Last edited:
- *   25/05/2021, 17:23:26
+ *   25/05/2021, 18:14:13
  * Auto updated?
  *   Yes
  *
@@ -16,7 +16,7 @@
 #include <iostream>
 #include <cstring>
 #include <limits>
-#include "debugger/CppDebugger.hpp"
+#include <CppDebugger.hpp>
 
 #include "renderer/Renderer.hpp"
 

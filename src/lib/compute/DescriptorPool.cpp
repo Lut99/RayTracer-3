@@ -4,7 +4,7 @@
  * Created:
  *   26/04/2021, 14:38:48
  * Last edited:
- *   25/05/2021, 17:23:26
+ *   25/05/2021, 18:14:13
  * Auto updated?
  *   Yes
  *
@@ -14,7 +14,7 @@
  *   piece of memory should be accessed on the GPU.
 **/
 
-#include "debugger/CppDebugger.hpp"
+#include <CppDebugger.hpp>
 
 #include "ErrorCodes.hpp"
 

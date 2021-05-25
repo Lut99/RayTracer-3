@@ -4,7 +4,7 @@
  * Created:
  *   02/05/2021, 17:12:29
  * Last edited:
- *   25/05/2021, 17:23:26
+ *   25/05/2021, 18:14:13
  * Auto updated?
  *   Yes
  *
@@ -20,7 +20,7 @@
 #include <linux/limits.h>
 #endif
 #include <sstream>
-#include "debugger/CppDebugger.hpp"
+#include <CppDebugger.hpp>
 
 #include "Common.hpp"
 

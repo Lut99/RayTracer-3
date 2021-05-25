@@ -15,6 +15,7 @@ ENDIF()
 # Get the VULKAN, GLM & CppDebugger library
 find_package(Vulkan REQUIRED)
 find_package(glfw3 3.3 REQUIRED)
+find_package(CppDebugger REQUIRED)
 
 # Specify the C++-standard to use
 set(CMAKE_CXX_STANDARD 17)
@@ -69,7 +70,8 @@ target_include_directories(raytracer PUBLIC "${INCLUDE_DIRS}")
 target_link_libraries(raytracer PUBLIC
                       ${EXTRA_LIBS}
                       ${Vulkan_LIBRARIES}
-                      glfw)
+                      glfw
+                      cppdbg)
 
 
 
