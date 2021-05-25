@@ -4,7 +4,7 @@
  * Created:
  *   28/04/2021, 14:28:32
  * Last edited:
- *   03/05/2021, 15:15:32
+ *   25/05/2021, 16:55:13
  * Auto updated?
  *   Yes
  *
@@ -33,7 +33,7 @@ using namespace CppDebugger::SeverityValues;
 /***** FRAME CLASS *****/
 /* Constructor for the Frame class, which takes the dimension of the frame. */
 Frame::Frame(uint32_t width, uint32_t height) :
-    data(new glm::vec3[width * height]),
+    data(new uint32_t[width * height]),
     width(width),
     height(height)
 {}
@@ -46,9 +46,9 @@ Frame::Frame(const Frame& other) :
     DENTER("Frame::Frame(copy)");
 
     // Allocate a new CPU-side buffer
-    this->data = new glm::vec3[this->width * this->height];
+    this->data = new uint32_t[this->width * this->height];
     // Copy the entire memory in one go
-    memcpy(this->data, other.data, this->width * this->height * sizeof(glm::vec3));
+    memcpy(this->data, other.data, this->width * this->height * sizeof(uint32_t));
 
     // Done
     DLEAVE;
@@ -86,12 +86,12 @@ void Frame::to_png(const std::string& path) const {
     vector<unsigned char> raw_image;
     raw_image.resize(4 * this->width * this->height);
     for (uint32_t i = 0; i < this->width * this->height; i++) {
-        glm::vec3& pixel = this->data[i];
+        uint32_t pixel = this->data[i];
 
-        // Convert to 255
-        raw_image[4 * i    ] = (unsigned char) (255.0 * pixel.r);
-        raw_image[4 * i + 1] = (unsigned char) (255.0 * pixel.g);
-        raw_image[4 * i + 2] = (unsigned char) (255.0 * pixel.b);
+        // Unpack the individual pixel values
+        raw_image[4 * i    ] = (pixel >> 24) & 0xFF; // r
+        raw_image[4 * i + 1] = (pixel >> 16) & 0xFF; // g
+        raw_image[4 * i + 2] = (pixel >>  8) & 0xFF; // b
         raw_image[4 * i + 3] = 255;
     }
 
@@ -129,11 +129,12 @@ void Frame::to_ppm(const std::string& path) const {
 
     // Now we write the data
     for (size_t i = 0; i < this->width * this->height; i++) {
-        // Convert the floats to bytes
-        glm::vec3& pixel = this->data[i];
-        unsigned char r = (unsigned char) (255.0 / pixel.r);
-        unsigned char g = (unsigned char) (255.0 / pixel.g);
-        unsigned char b = (unsigned char) (255.0 / pixel.b);
+        // Unpack the integer
+        uint32_t pixel = this->data[i];
+        unsigned char r = (pixel >> 24) & 0xFF;
+        unsigned char g = (pixel >> 16) & 0xFF;
+        unsigned char b = (pixel >>  8) & 0xFF;
+        DLOG(info, "pixel: (" + std::to_string(r) + "," + std::to_string(g) + "," + std::to_string(b) + ")");
 
         // Write to the file
         h.write((const char*) &r, sizeof(unsigned char));

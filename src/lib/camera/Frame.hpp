@@ -4,7 +4,7 @@
  * Created:
  *   28/04/2021, 14:28:35
  * Last edited:
- *   03/05/2021, 13:36:27
+ *   25/05/2021, 16:54:51
  * Auto updated?
  *   Yes
  *
@@ -21,11 +21,27 @@
 #include "glm/glm.hpp"
 
 namespace RayTracer {
+    /* The Pixel struct, which directly represents a single pixel. Can also be indexed by index. */
+    struct Pixel {
+        uint8_t r;
+        uint8_t g;
+        uint8_t b;
+        uint8_t a;
+    };
+
+    /* The IPixel union, which overlays a pixel over a uint32_t to make indexing a whole lotta easier. */
+    union IPixel {
+        uint32_t raw;
+        Pixel pixel;  
+    };
+
+
+
     /* The Frame class, which represents a single image to be rendered by the RayTracer. */
     class Frame {
     private:
-        /* The actual frame buffer. */
-        glm::vec3* data;
+        /* The actual frame buffer, tightly packed as 32-bit unsigned integers that represent RGBA. Note that the actual order is secretly BGRA. */
+        uint32_t* data;
         /* The width, in pixels, of the frame. */
         uint32_t width;
         /* The height, in pixels, of the frame. */
@@ -51,7 +67,10 @@ namespace RayTracer {
         /* Returns the height of the frame. */
         inline uint32_t h() const { return this->height; }
         /* Allows access to the internal frame buffer. */
-        inline glm::vec3* d() const { return this->data; } 
+        inline uint32_t* d() const { return this->data; }
+
+        /* Returns the pixel at the given index. */
+        inline IPixel operator[](size_t index) { IPixel result; result.raw = this->data[index]; return result; }
         
         /* Copy assignment operator for the Frame class. */
         inline Frame& operator=(const Frame& other) { return *this = Frame(other); }

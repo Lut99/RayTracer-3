@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:40:07
  * Last edited:
- *   21/05/2021, 18:23:57
+ *   25/05/2021, 16:07:55
  * Auto updated?
  *   Yes
  *
@@ -17,6 +17,7 @@
 #include <limits>
 #include <CppDebugger.hpp>
 
+#include "Formats.hpp"
 #include "ErrorCodes.hpp"
 
 #include "Swapchain.hpp"
@@ -109,6 +110,7 @@ static VkSurfaceFormatKHR choose_swapchain_format(const Tools::Array<VkSurfaceFo
 
     for (size_t i = 0; i < formats.size(); i++) {
         if (formats[i].format == VK_FORMAT_B8G8R8A8_SRGB && formats[i].colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+            DLOG(info, "Using format: " + vk_format_map[formats[i].format]);
             DRETURN formats[i];
         }
     }
@@ -117,6 +119,7 @@ static VkSurfaceFormatKHR choose_swapchain_format(const Tools::Array<VkSurfaceFo
     if (formats.size() == 0) {
         DLOG(fatal, "No surface formats given");
     }
+    DLOG(info, "Using format: " + vk_format_map[formats[0].format]);
     DRETURN formats[0];
 }
 

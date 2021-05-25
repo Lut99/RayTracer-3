@@ -4,7 +4,7 @@
  * Created:
  *   30/04/2021, 13:34:23
  * Last edited:
- *   21/05/2021, 16:19:19
+ *   25/05/2021, 16:57:04
  * Auto updated?
  *   Yes
  *
@@ -417,7 +417,7 @@ void VulkanRenderer::render(Camera& cam) const {
     // First, allocate buffers for the frame and the camera data
     uint32_t width = cam.w(), height = cam.h();
     size_t camera_size = sizeof(GCameraData);
-    size_t frame_size = width * height * sizeof(glm::vec4);
+    size_t frame_size = width * height * sizeof(uint32_t);
     Buffer camera = this->device_memory_pool->allocate_buffer(camera_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT);
     Buffer frame = this->device_memory_pool->allocate_buffer(frame_size, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
@@ -513,9 +513,21 @@ void VulkanRenderer::render(Camera& cam) const {
     void* frame_staging_map;
     frame_staging.map(*this->gpu, &frame_staging_map);
 
-    // Copy the vectors manually, to convert from vec4 to vec3
-    for (uint32_t p = 0; p < width * height; p++) {
-        cam.get_frame().d()[p] = ((glm::vec4*) frame_staging_map)[p];
+    // Copy the integer over, but apply some swizzling to correct for the incorrect GPU format (little endian + BGRA instead of RGBA)
+    for (size_t i = 0; i < width * height; i++) {
+        // Get the raw value as an IPixel
+        IPixel gp;
+        gp.raw = ((uint32_t*) frame_staging_map)[i];
+
+        // Now, swizzle the pixel to the CPU-expected format
+        IPixel cp;
+        cp.pixel.r = gp.pixel.a;
+        cp.pixel.g = gp.pixel.r;
+        cp.pixel.b = gp.pixel.g;
+        cp.pixel.a = gp.pixel.b;
+
+        // Store in the camera, swizzled to the correct order
+        cam.get_frame().d()[i] = cp.raw;
     }
    
     // When done, flush and unmap

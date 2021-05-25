@@ -4,7 +4,7 @@
  * Created:
  *   09/05/2021, 18:30:34
  * Last edited:
- *   24/05/2021, 16:51:02
+ *   25/05/2021, 17:03:40
  * Auto updated?
  *   Yes
  *
@@ -14,6 +14,8 @@
  *   this render is blocking, returning an empty frame once the user closes
  *   the window.
 **/
+
+#include <chrono>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -475,11 +477,12 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
     DLOG(info, "Preparing output buffers...");
 
     // Allocate the images to output to
+    size_t frame_size = swapchain->extent().width * swapchain->extent().height * sizeof(uint32_t);
     Tools::Array<Buffer> frames(VulkanOnlineRenderer::max_frames_in_flight);
     for (uint32_t i = 0; i < VulkanOnlineRenderer::max_frames_in_flight; i++) {
         // Allocate it
         frames.push_back(this->device_memory_pool->allocate_buffer(
-            swapchain->extent().width * swapchain->extent().height * sizeof(glm::vec4),
+            frame_size,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT
         ));
     }
@@ -629,7 +632,8 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
     DLOG(info, "Entering game loop...");
     DINDENT;
     uint32_t current_frame = 0;
-    bool rendered_once = false;
+    unsigned int fps_count = 0;
+    std::chrono::time_point last_fps = std::chrono::system_clock::now();
     while (!glfwWindowShouldClose(glfw_window)) {
         // Let's handle the window events
         glfwPollEvents();
@@ -715,8 +719,18 @@ void VulkanOnlineRenderer::render(Camera& cam) const {
 
         // Once done, advance to the next frame in flight
         current_frame = (current_frame + 1) % VulkanOnlineRenderer::max_frames_in_flight;
-        if (current_frame == 0) {
-            rendered_once = true;
+
+
+
+        // FPS counter
+        ++fps_count;
+        if (chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - last_fps).count() >= 1000) {
+            // Reset the timer
+            last_fps += chrono::milliseconds(1000);
+
+            // Show the FPS
+            glfwSetWindowTitle(glfw_window, ("RayTracer-3 (FPS: " + std::to_string(fps_count) + ")").c_str());
+            fps_count = 0;
         }
     }
     DDEDENT;

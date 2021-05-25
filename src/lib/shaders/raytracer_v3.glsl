@@ -4,7 +4,7 @@
  * Created:
  *   03/05/2021, 13:59:41
  * Last edited:
- *   21/05/2021, 14:41:14
+ *   25/05/2021, 16:48:41
  * Auto updated?
  *   Yes
  *
@@ -41,9 +41,9 @@ struct GFace {
     uint v3;
 
     /* The normal of the face. */
-    vec4 normal;
+    vec3 normal;
     /* The color of the face. */
-    vec4 color;  
+    vec3 color;  
 };
 
 
@@ -60,7 +60,7 @@ layout (constant_id = 1) const int height = 0;
 /* Define the buffers. */
 // The output frame to which we render
 layout(std430, set = 0, binding = 0) buffer Frame {
-    vec4 pixels[];
+    uint pixels[];
 } frame;
 
 // The input data for the camera
@@ -88,7 +88,7 @@ layout(std430, set = 0, binding = 3) buffer Vertices {
 
 
 /* Computes the color of a ray given the vector representing it. */
-vec4 ray_color(vec3 origin, vec3 direction) {
+vec3 ray_color(vec3 origin, vec3 direction) {
     // Loop through the vertices so find any one we hit
     uint min_i = 0;
     float min_t = 1e99;
@@ -138,12 +138,12 @@ vec4 ray_color(vec3 origin, vec3 direction) {
         // Return the blue sky
         vec3 unit_direction = direction / length(direction);
         float t = 0.5 * (unit_direction.y + 1.0);
-        return vec4((1.0 - t) * vec3(1.0) + t * vec3(0.5, 0.7, 1.0), 0.0);
+        return (1.0 - t) * vec3(1.0) + t * vec3(0.5, 0.7, 1.0);
     }
 }
 
 /* Computes the color of a ray given the vector representing it. This version renders only the vertices as small spheres and does not use the faces. */
-vec4 ray_dot(vec3 origin, vec3 direction) {
+vec3 ray_dot(vec3 origin, vec3 direction) {
     // Determines the radius for all dots
     #define dot_radius 0.05
     // Determines the distance before dots go fully black
@@ -172,12 +172,12 @@ vec4 ray_dot(vec3 origin, vec3 direction) {
 
     // If we found a t, return the (possibly darker) pixel
     if (min_t < 1e99) {
-        return max(1.0 - min_t / black_distance, 0.0) * vec4(1.0, 0.0, 0.0, 0.0);
+        return max(1.0 - min_t / black_distance, 0.0) * vec3(1.0, 0.0, 0.0);
     } else {
         // Return the blue sky
         vec3 unit_direction = direction / length(direction);
         float t = 0.5 * (unit_direction.y + 1.0);
-        return vec4((1.0 - t) * vec3(1.0) + t * vec3(0.5, 0.7, 1.0), 0.0);
+        return (1.0 - t) * vec3(1.0) + t * vec3(0.5, 0.7, 1.0);
     }
 }
 
@@ -199,7 +199,8 @@ void main() {
         vec3 ray = camera.lower_left_corner + u * camera.horizontal + v * camera.vertical - camera.origin;
 
         // Compute the ray's color and store it as a vector
-        frame.pixels[y * width + x] = ray_color(camera.origin, ray);
+        // frame.pixels[y * width + x] = ray_color(camera.origin, ray);
+        frame.pixels[y * width + x] = packUnorm4x8(vec4(ray_color(camera.origin, ray), 1.0).zyxw);
 
         // if (y * width + x == 0) {
         //     // Return the number of vertices for comparison purposes
